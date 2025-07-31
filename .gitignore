@@ -1,0 +1,8 @@
+# Temporary files
+config.json
+metrics.json
+reconstructed.mat
+temp_input.mat
+
+# Python cache
+__pycache__/
