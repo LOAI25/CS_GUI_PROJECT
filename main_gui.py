@@ -11,9 +11,8 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import QThread, pyqtSignal
 
-from algorithms.common import get_hdf5_image_dims
+from algorithms.common import get_hdf5_image_dims, generate_sampling_mask, save_mask_to_mat
 
-# Prevent GUI from freezing or hanging on close while the algorithm is running
 class AlgorithmRunner(QThread):
     finished = pyqtSignal()
     failed = pyqtSignal(str)
@@ -31,6 +30,7 @@ class CS_GUI(QWidget):
         super().__init__()
         self.setWindowTitle("GUI for different kinds of compressed sensing")
         self.image_path = None
+        self.image_shape = None
         self.initUI()
 
     def initUI(self):
@@ -40,18 +40,22 @@ class CS_GUI(QWidget):
         self.alg_selector.addItems(["cvx", "BSBL_FM"])
         self.alg_selector.currentTextChanged.connect(self.update_param_visibility)
 
-        self.sampling_label = QLabel("sampling rate:")
+        self.sampling_label = QLabel("Sampling rate:")
         self.sampling_input = QDoubleSpinBox()
         self.sampling_input.setRange(0.01, 1.0)
         self.sampling_input.setSingleStep(0.05)
         self.sampling_input.setValue(0.3)
 
-        self.block_label = QLabel("block size:")
+        self.sampling_method_label = QLabel("Sampling method:")
+        self.sampling_method_selector = QComboBox()
+        self.sampling_method_selector.addItems(["random", "linehop"])
+
+        self.block_label = QLabel("Block size:")
         self.block_size_input = QSpinBox()
         self.block_size_input.setRange(8, 512)
         self.block_size_input.setValue(64)
 
-        self.slice_label = QLabel("slice index:")
+        self.slice_label = QLabel("Slice index:")
         self.slice_index_input = QSpinBox()
         self.slice_index_input.setRange(0, 999)
         self.slice_index_input.setValue(0)
@@ -61,7 +65,7 @@ class CS_GUI(QWidget):
         self.snr_input.setRange(0, 100)
         self.snr_input.setValue(30)
 
-        self.blklen_label = QLabel("blk_len:")
+        self.blklen_label = QLabel("Blk_len:")
         self.blklen_input = QSpinBox()
         self.blklen_input.setRange(1, 64)
         self.blklen_input.setValue(8)
@@ -83,6 +87,9 @@ class CS_GUI(QWidget):
 
         self.layout.addWidget(self.sampling_label)
         self.layout.addWidget(self.sampling_input)
+        self.layout.addWidget(self.sampling_method_label)
+        self.layout.addWidget(self.sampling_method_selector)
+
         self.layout.addWidget(self.block_label)
         self.layout.addWidget(self.block_size_input)
 
@@ -106,17 +113,20 @@ class CS_GUI(QWidget):
         self.slice_label.setVisible(False)
         self.slice_index_input.setVisible(False)
 
-    # Show/hide BSBL_FM-specific parameters depending on selected algorithm
     def update_param_visibility(self, algo):
         is_bsbl = (algo == "BSBL_FM")
         self.snr_label.setVisible(is_bsbl)
         self.snr_input.setVisible(is_bsbl)
-        self.blklen_label.setVisible(is_bsbl)
-        self.blklen_input.setVisible(is_bsbl)
         self.lambda_label.setVisible(is_bsbl)
         self.lambda_selector.setVisible(is_bsbl)
 
-    # Automatically check image dimensionality and update slice index input
+        # 统一始终可见
+        self.blklen_label.setVisible(True)
+        self.blklen_input.setVisible(True)
+
+        self.block_label.setVisible(True)
+        self.block_size_input.setVisible(True)
+
     def load_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Choose your HDF5 file", "", "HDF5 Files (*.hdf5)")
         if file_path:
@@ -124,6 +134,7 @@ class CS_GUI(QWidget):
             try:
                 shape = get_hdf5_image_dims(file_path)
                 ndim = len(shape)
+                self.image_shape = shape  # 存储用于采样 mask
 
                 if ndim == 2:
                     self.slice_label.setVisible(False)
@@ -137,14 +148,17 @@ class CS_GUI(QWidget):
                     self.status_label.setText(f"Wrong image dim: {shape}")
                     return
 
-                self.status_label.setText(f"File is loaded with dim: {shape}")
-
+                self.status_label.setText(f"File loaded with dim: {shape}")
             except Exception as e:
-                self.status_label.setText(f"The file is fail to load: {e}")
+                self.status_label.setText(f"Failed to load file: {e}")
 
     def run_cs(self):
         if not self.image_path:
             self.status_label.setText("The file hasn't been selected")
+            return
+
+        if self.image_shape is None:
+            self.status_label.setText("Image not properly loaded.")
             return
 
         algorithm = self.alg_selector.currentText()
@@ -153,6 +167,7 @@ class CS_GUI(QWidget):
             "slice_index": self.slice_index_input.value(),
             "sampling_rate": self.sampling_input.value(),
             "block_size": self.block_size_input.value(),
+            "blk_len": self.blklen_input.value(),
             "algorithm": algorithm,
             "output_path": "reconstructed.mat",
             "metrics_path": "metrics.json"
@@ -160,11 +175,22 @@ class CS_GUI(QWidget):
 
         if algorithm == "BSBL_FM":
             cfg["snr"] = self.snr_input.value()
-            cfg["blk_len"] = self.blklen_input.value()
             cfg["learn_lambda"] = self.lambda_selector.currentIndex()
 
         with open("config.json", "w") as f:
             json.dump(cfg, f)
+
+        # === 生成 mask 并保存 ===
+        try:
+            sampling_rate = self.sampling_input.value()
+            method = self.sampling_method_selector.currentText()
+            H, W = self.image_shape[:2]
+
+            mask = generate_sampling_mask(H, W, sampling_rate, method=method)
+            save_mask_to_mat(mask, "sampling_mask.mat")
+        except Exception as e:
+            self.status_label.setText(f"Fail to generate sampling mask: {e}")
+            return
 
         self.status_label.setText("The algorithm is working")
         QApplication.processEvents()
@@ -198,16 +224,17 @@ class CS_GUI(QWidget):
     def on_run_failed(self, error_msg):
         self.status_label.setText(f"Fail to run: {error_msg}")
 
-    # Ensure temp_input.mat is deleted when the GUI window is closed, even if the algorithm was still running
     def closeEvent(self, event):
-        temp_mat_path = "temp_input.mat"
-        if os.path.exists(temp_mat_path):
-            try:
-                os.remove(temp_mat_path)
-                print(f"Delete temporary file: {temp_mat_path}")
-            except Exception as e:
-                print(f"Fail to delete: {e}")
+        temp_files = ["temp_input.mat", "sampling_mask.mat"]
+        for file_path in temp_files:
+            if os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                    print(f"Deleted temporary file: {file_path}")
+                except Exception as e:
+                    print(f"Failed to delete {file_path}: {e}")
         event.accept()
+
 
 
 if __name__ == '__main__':

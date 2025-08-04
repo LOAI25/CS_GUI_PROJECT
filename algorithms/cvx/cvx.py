@@ -1,54 +1,69 @@
 import numpy as np
 import cvxpy as cp
 from scipy.fftpack import dct
+import time
 
-def dct2d_matrix(block_size):
+def dct2d_matrix_inverse(block_size):
     D1 = dct(np.eye(block_size), norm='ortho')
-    return np.kron(D1, D1)
+    return np.kron(D1.T, D1.T)
 
 #  recon for single patch (2D DCT + LASSO + mean adjustment)
-def reconstruct_patch(patch, sampling_rate=0.3, lam=0.01):
-    block_size = patch.shape[0]
-    x = patch.flatten().reshape(-1, 1)
-    n = x.shape[0]
+def reconstruct_from_mask(image, mask, block_size, stride, lam=0.01, min_samples=5):
 
-    D = dct2d_matrix(block_size)
-    D_inv = D.T
-
-    m = int(n * sampling_rate)
-    sample_idx = np.random.choice(n, m, replace=False)
-    A = np.zeros((m, n))
-    A[np.arange(m), sample_idx] = 1
-    y = A @ x
-
-    A_dct = A @ D_inv
-    z = cp.Variable((n, 1))
-    objective = cp.Minimize(0.5 * cp.sum_squares(A_dct @ z - y) + lam * cp.norm1(z))
-    prob = cp.Problem(objective)
-    prob.solve(solver=cp.SCS, verbose=False)
-
-    z_hat = z.value
-    x_hat = D_inv @ z_hat
-    patch_recon = x_hat.reshape(patch.shape)
-
-    # mean adjustment
-    recon_mean = np.mean(patch_recon)
-    orig_mean = np.mean(patch)
-    mean_shift = recon_mean - orig_mean
-
-    if abs(mean_shift) > 0.02:
-        patch_recon = patch_recon - mean_shift
-
-    return np.clip(patch_recon, 0, 1)
-
-def blockwise_reconstruct(image, block_size, sampling_rate):
     H, W = image.shape
-    X_recon = np.zeros_like(image)
-    for i in range(0, H, block_size):
-        for j in range(0, W, block_size):
+    N = block_size * block_size
+    Psi_inv = dct2d_matrix_inverse(block_size)  # Psi^{-1} ∈ R^{N×N}
+
+    recon_img = np.zeros((H, W), dtype=np.float32)
+    weight_img = np.zeros((H, W), dtype=np.float32)
+    t1 = time.time()
+
+    for i in range(0, H - block_size + 1, stride):
+        for j in range(0, W - block_size + 1, stride):
             patch = image[i:i+block_size, j:j+block_size]
-            if patch.shape != (block_size, block_size):
+            patch_mask = mask[i:i+block_size, j:j+block_size]
+
+            x = patch.flatten().reshape(-1, 1)
+            msk = patch_mask.flatten().astype(bool)
+
+            if np.sum(msk) < min_samples:
                 continue
-            recon = reconstruct_patch(patch, sampling_rate=sampling_rate)
-            X_recon[i:i+block_size, j:j+block_size] = recon
-    return X_recon
+
+    
+            Phi = np.eye(N)[msk]        # Φ ∈ R^{m×N}
+            y = Phi @ x                 # y ∈ R^{m×1}
+            A = Phi @ Psi_inv           # A = Φ · Ψ^{-1}
+            
+
+            # Solve sparse code z using LASSO
+            z = cp.Variable((N, 1))
+            objective = cp.Minimize(0.5 * cp.sum_squares(A @ z - y) + lam * cp.norm1(z))
+            prob = cp.Problem(objective)
+            
+            prob.solve(solver=cp.SCS, verbose=False)
+    
+
+            
+
+            if z.value is None:
+                continue
+
+            x_hat = Psi_inv @ z.value  # 重建 patch
+            patch_recon = x_hat.reshape((block_size, block_size))
+
+            # 累加并加权平均
+            recon_img[i:i+block_size, j:j+block_size] += patch_recon
+            weight_img[i:i+block_size, j:j+block_size] += 1
+
+    t2 = time.time()
+    print(f"解LASSO耗时: {(t2 - t1)*1000:.2f} ms")
+
+    # 归一化加权图像
+    t3 = time.time()
+    weight_img[weight_img == 0] = 1
+    recon_img /= weight_img
+    recon_img = np.clip(recon_img, 0, 1)
+    t4 = time.time()
+    print(f"recon: {(t4 - t3)*1000:.2f} ms")
+
+    return recon_img

@@ -35,7 +35,7 @@ N         = patch_size^2;
 blkStartLoc = 1:blkLen:N;
 M         = round(sampling_rate * N);
 D         = dctmtx(patch_size);
-Psi2D     = kron(D, D);
+Psi2D     = kron(D', D');
 
 % main loop for blocks
 for i = 1:patch_size:H

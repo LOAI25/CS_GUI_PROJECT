@@ -3,6 +3,7 @@ import os
 import subprocess
 import shutil
 from algorithms.common import load_hdf5_image, save_temp_mat, delete_temp_mat 
+import time
 
 with open("config.json") as f:
     cfg = json.load(f)
@@ -22,6 +23,7 @@ try:
     env_name = env_cfg["env_name"].lower()
 
     project_root = os.path.abspath(os.path.dirname(__file__))
+    print("start to distinguish version")
 
     # switch between matlab and other python environments
     if env_name.lower() == "matlab":
@@ -58,6 +60,7 @@ try:
             cwd=project_root,
             env=env
         )
+
 
 finally:
     # delete temporary file
