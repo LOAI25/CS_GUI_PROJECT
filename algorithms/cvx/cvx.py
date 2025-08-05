@@ -8,20 +8,19 @@ def dct2d_matrix_inverse(block_size):
     return np.kron(D1.T, D1.T)
 
 #  recon for single patch (2D DCT + LASSO + mean adjustment)
-def reconstruct_from_mask(image, mask, block_size, stride, lam=0.01, min_samples=5):
-
+def reconstruct_from_mask(image, mask, patch_size, stride, lam=0.01, min_samples=5):
     H, W = image.shape
-    N = block_size * block_size
-    Psi_inv = dct2d_matrix_inverse(block_size)  # Psi^{-1} ∈ R^{N×N}
+    N = patch_size * patch_size
+    Psi_inv = dct2d_matrix_inverse(patch_size)  # Psi^{-1} ∈ R^{N×N}
 
     recon_img = np.zeros((H, W), dtype=np.float32)
     weight_img = np.zeros((H, W), dtype=np.float32)
     t1 = time.time()
 
-    for i in range(0, H - block_size + 1, stride):
-        for j in range(0, W - block_size + 1, stride):
-            patch = image[i:i+block_size, j:j+block_size]
-            patch_mask = mask[i:i+block_size, j:j+block_size]
+    for i in range(0, H - patch_size + 1, stride):
+        for j in range(0, W - patch_size + 1, stride):
+            patch = image[i:i+patch_size, j:j+patch_size]
+            patch_mask = mask[i:i+patch_size, j:j+patch_size]
 
             x = patch.flatten().reshape(-1, 1)
             msk = patch_mask.flatten().astype(bool)
@@ -29,31 +28,25 @@ def reconstruct_from_mask(image, mask, block_size, stride, lam=0.01, min_samples
             if np.sum(msk) < min_samples:
                 continue
 
-    
             Phi = np.eye(N)[msk]        # Φ ∈ R^{m×N}
             y = Phi @ x                 # y ∈ R^{m×1}
             A = Phi @ Psi_inv           # A = Φ · Ψ^{-1}
-            
 
             # Solve sparse code z using LASSO
             z = cp.Variable((N, 1))
             objective = cp.Minimize(0.5 * cp.sum_squares(A @ z - y) + lam * cp.norm1(z))
             prob = cp.Problem(objective)
-            
             prob.solve(solver=cp.SCS, verbose=False)
-    
-
-            
 
             if z.value is None:
                 continue
 
             x_hat = Psi_inv @ z.value  # 重建 patch
-            patch_recon = x_hat.reshape((block_size, block_size))
+            patch_recon = x_hat.reshape((patch_size, patch_size))
 
             # 累加并加权平均
-            recon_img[i:i+block_size, j:j+block_size] += patch_recon
-            weight_img[i:i+block_size, j:j+block_size] += 1
+            recon_img[i:i+patch_size, j:j+patch_size] += patch_recon
+            weight_img[i:i+patch_size, j:j+patch_size] += 1
 
     t2 = time.time()
     print(f"解LASSO耗时: {(t2 - t1)*1000:.2f} ms")

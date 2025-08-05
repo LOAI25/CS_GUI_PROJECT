@@ -13,7 +13,7 @@ def load_hdf5_image(path, slice_index=0):
     data = signal.data.astype(np.float64)
 
     if data.ndim == 3:
-        image = data[:, :, slice_index]
+        image = data[slice_index, :, :]
     else:
         image = data
 

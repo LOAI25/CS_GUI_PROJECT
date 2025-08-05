@@ -13,6 +13,7 @@ from PyQt5.QtCore import QThread, pyqtSignal
 
 from algorithms.common import get_hdf5_image_dims, generate_sampling_mask, save_mask_to_mat
 
+
 class AlgorithmRunner(QThread):
     finished = pyqtSignal()
     failed = pyqtSignal(str)
@@ -36,30 +37,44 @@ class CS_GUI(QWidget):
     def initUI(self):
         self.layout = QVBoxLayout()
 
+        # 算法选择
         self.alg_selector = QComboBox()
         self.alg_selector.addItems(["cvx", "BSBL_FM"])
         self.alg_selector.currentTextChanged.connect(self.update_param_visibility)
 
+        # 采样率
         self.sampling_label = QLabel("Sampling rate:")
         self.sampling_input = QDoubleSpinBox()
         self.sampling_input.setRange(0.01, 1.0)
         self.sampling_input.setSingleStep(0.05)
         self.sampling_input.setValue(0.3)
 
+        # 采样方法
         self.sampling_method_label = QLabel("Sampling method:")
         self.sampling_method_selector = QComboBox()
         self.sampling_method_selector.addItems(["random", "linehop"])
 
-        self.block_label = QLabel("Block size:")
-        self.block_size_input = QSpinBox()
-        self.block_size_input.setRange(8, 512)
-        self.block_size_input.setValue(64)
+        # Patch size
+        self.patch_label = QLabel("Patch size:")
+        self.patch_size_input = QSpinBox()
+        self.patch_size_input.setRange(8, 512)
+        self.patch_size_input.setValue(64)
 
+        # Stride
+        self.stride_label = QLabel("Stride:")
+        self.stride_input = QSpinBox()
+        self.stride_input.setRange(1, 512)
+        self.stride_input.setValue(8)
+
+        # Slice index（初始隐藏）
         self.slice_label = QLabel("Slice index:")
         self.slice_index_input = QSpinBox()
         self.slice_index_input.setRange(0, 999)
         self.slice_index_input.setValue(0)
+        self.slice_label.setVisible(False)
+        self.slice_index_input.setVisible(False)
 
+        # BSBL 专用参数
         self.snr_label = QLabel("SNR:")
         self.snr_input = QSpinBox()
         self.snr_input.setRange(0, 100)
@@ -74,14 +89,17 @@ class CS_GUI(QWidget):
         self.lambda_selector = QComboBox()
         self.lambda_selector.addItems(["No learning rule", "Medium SNR", "High SNR"])
 
+        # 按钮
         self.load_button = QPushButton("Choose your HDF5 file")
         self.load_button.clicked.connect(self.load_file)
 
         self.run_button = QPushButton("Do compressed sensing")
         self.run_button.clicked.connect(self.run_cs)
 
+        # 状态
         self.status_label = QLabel("The file hasn't been loaded")
 
+        # 布局
         self.layout.addWidget(QLabel("Choose your algorithm:"))
         self.layout.addWidget(self.alg_selector)
 
@@ -90,8 +108,10 @@ class CS_GUI(QWidget):
         self.layout.addWidget(self.sampling_method_label)
         self.layout.addWidget(self.sampling_method_selector)
 
-        self.layout.addWidget(self.block_label)
-        self.layout.addWidget(self.block_size_input)
+        self.layout.addWidget(self.patch_label)
+        self.layout.addWidget(self.patch_size_input)
+        self.layout.addWidget(self.stride_label)
+        self.layout.addWidget(self.stride_input)
 
         self.layout.addWidget(self.slice_label)
         self.layout.addWidget(self.slice_index_input)
@@ -110,31 +130,32 @@ class CS_GUI(QWidget):
         self.setLayout(self.layout)
         self.update_param_visibility("cvx")
 
-        self.slice_label.setVisible(False)
-        self.slice_index_input.setVisible(False)
-
     def update_param_visibility(self, algo):
+        """控制不同算法的参数显示"""
         is_bsbl = (algo == "BSBL_FM")
         self.snr_label.setVisible(is_bsbl)
         self.snr_input.setVisible(is_bsbl)
         self.lambda_label.setVisible(is_bsbl)
         self.lambda_selector.setVisible(is_bsbl)
+        self.blklen_label.setVisible(is_bsbl)
+        self.blklen_input.setVisible(is_bsbl)
 
-        # 统一始终可见
-        self.blklen_label.setVisible(True)
-        self.blklen_input.setVisible(True)
-
-        self.block_label.setVisible(True)
-        self.block_size_input.setVisible(True)
+        # 公共参数
+        self.patch_label.setVisible(True)
+        self.patch_size_input.setVisible(True)
+        self.stride_label.setVisible(True)
+        self.stride_input.setVisible(True)
+        # slice index 在 load_file 里控制显示，不在这里管
 
     def load_file(self):
+        """选择并加载 HDF5 文件"""
         file_path, _ = QFileDialog.getOpenFileName(self, "Choose your HDF5 file", "", "HDF5 Files (*.hdf5)")
         if file_path:
             self.image_path = file_path
             try:
                 shape = get_hdf5_image_dims(file_path)
                 ndim = len(shape)
-                self.image_shape = shape  # 存储用于采样 mask
+                self.image_shape = shape
 
                 if ndim == 2:
                     self.slice_label.setVisible(False)
@@ -143,7 +164,7 @@ class CS_GUI(QWidget):
                 elif ndim == 3:
                     self.slice_label.setVisible(True)
                     self.slice_index_input.setVisible(True)
-                    self.slice_index_input.setMaximum(shape[2] - 1)
+                    self.slice_index_input.setMaximum(shape[0] - 1)
                 else:
                     self.status_label.setText(f"Wrong image dim: {shape}")
                     return
@@ -153,6 +174,7 @@ class CS_GUI(QWidget):
                 self.status_label.setText(f"Failed to load file: {e}")
 
     def run_cs(self):
+        """运行压缩感知"""
         if not self.image_path:
             self.status_label.setText("The file hasn't been selected")
             return
@@ -166,8 +188,8 @@ class CS_GUI(QWidget):
             "image_path": self.image_path,
             "slice_index": self.slice_index_input.value(),
             "sampling_rate": self.sampling_input.value(),
-            "block_size": self.block_size_input.value(),
-            "blk_len": self.blklen_input.value(),
+            "patch_size": self.patch_size_input.value(),
+            "stride": self.stride_input.value(),
             "algorithm": algorithm,
             "output_path": "reconstructed.mat",
             "metrics_path": "metrics.json"
@@ -176,15 +198,21 @@ class CS_GUI(QWidget):
         if algorithm == "BSBL_FM":
             cfg["snr"] = self.snr_input.value()
             cfg["learn_lambda"] = self.lambda_selector.currentIndex()
+            cfg["blk_len"] = self.blklen_input.value()
 
         with open("config.json", "w") as f:
             json.dump(cfg, f)
 
-        # === 生成 mask 并保存 ===
+        # 生成采样 mask
         try:
             sampling_rate = self.sampling_input.value()
             method = self.sampling_method_selector.currentText()
-            H, W = self.image_shape[:2]
+            if len(self.image_shape) == 2:
+                H, W = self.image_shape
+            elif len(self.image_shape) == 3:
+                H, W = self.image_shape[1], self.image_shape[2]
+            else:
+                raise ValueError(f"Unsupported image shape: {self.image_shape}")
 
             mask = generate_sampling_mask(H, W, sampling_rate, method=method)
             save_mask_to_mat(mask, "sampling_mask.mat")
@@ -201,6 +229,7 @@ class CS_GUI(QWidget):
         self.runner.start()
 
     def on_run_finished(self):
+        """运行完成后显示结果"""
         if os.path.exists("reconstructed.mat"):
             mat_data = loadmat("reconstructed.mat")
             recon = mat_data["recon_img"]
@@ -225,6 +254,7 @@ class CS_GUI(QWidget):
         self.status_label.setText(f"Fail to run: {error_msg}")
 
     def closeEvent(self, event):
+        """关闭时清理临时文件"""
         temp_files = ["temp_input.mat", "sampling_mask.mat"]
         for file_path in temp_files:
             if os.path.exists(file_path):
@@ -234,7 +264,6 @@ class CS_GUI(QWidget):
                 except Exception as e:
                     print(f"Failed to delete {file_path}: {e}")
         event.accept()
-
 
 
 if __name__ == '__main__':
