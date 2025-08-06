@@ -29,7 +29,7 @@ mask = loadmat("sampling_mask.mat")["mask"]
 recon = reconstruct_from_mask(
     image,
     mask,
-    block_size=cfg["patch_size"],  # 改为 patch_size
+    patch_size=cfg["patch_size"],  # 改为 patch_size
     stride=cfg["stride"],          # 新增 stride 参数
     lam=0.01,
     min_samples=5

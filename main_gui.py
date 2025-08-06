@@ -7,7 +7,7 @@ from scipy.io import loadmat
 
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QFileDialog, QVBoxLayout,
-    QComboBox, QSpinBox, QDoubleSpinBox
+    QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QHBoxLayout
 )
 from PyQt5.QtCore import QThread, pyqtSignal
 
@@ -32,6 +32,7 @@ class CS_GUI(QWidget):
         self.setWindowTitle("GUI for different kinds of compressed sensing")
         self.image_path = None
         self.image_shape = None
+        self.roi = None
         self.initUI()
 
     def initUI(self):
@@ -73,6 +74,29 @@ class CS_GUI(QWidget):
         self.slice_index_input.setValue(0)
         self.slice_label.setVisible(False)
         self.slice_index_input.setVisible(False)
+
+        # ROI 选择
+        self.use_full_image_checkbox = QCheckBox("Use full image")
+        self.use_full_image_checkbox.setChecked(True)
+        self.use_full_image_checkbox.stateChanged.connect(self.toggle_roi_inputs)
+
+        self.roi_label = QLabel("ROI coordinates (x_start, x_end, y_start, y_end):")
+
+        roi_layout = QHBoxLayout()
+        self.x_start_input = QSpinBox()
+        self.x_end_input = QSpinBox()
+        self.y_start_input = QSpinBox()
+        self.y_end_input = QSpinBox()
+        roi_layout.addWidget(self.x_start_input)
+        roi_layout.addWidget(self.x_end_input)
+        roi_layout.addWidget(self.y_start_input)
+        roi_layout.addWidget(self.y_end_input)
+
+        self.roi_label.setVisible(False)
+        self.x_start_input.setVisible(False)
+        self.x_end_input.setVisible(False)
+        self.y_start_input.setVisible(False)
+        self.y_end_input.setVisible(False)
 
         # BSBL 专用参数
         self.snr_label = QLabel("SNR:")
@@ -116,6 +140,10 @@ class CS_GUI(QWidget):
         self.layout.addWidget(self.slice_label)
         self.layout.addWidget(self.slice_index_input)
 
+        self.layout.addWidget(self.use_full_image_checkbox)
+        self.layout.addWidget(self.roi_label)
+        self.layout.addLayout(roi_layout)
+
         self.layout.addWidget(self.snr_label)
         self.layout.addWidget(self.snr_input)
         self.layout.addWidget(self.blklen_label)
@@ -130,8 +158,15 @@ class CS_GUI(QWidget):
         self.setLayout(self.layout)
         self.update_param_visibility("cvx")
 
+    def toggle_roi_inputs(self, state):
+        visible = not self.use_full_image_checkbox.isChecked()
+        self.roi_label.setVisible(visible)
+        self.x_start_input.setVisible(visible)
+        self.x_end_input.setVisible(visible)
+        self.y_start_input.setVisible(visible)
+        self.y_end_input.setVisible(visible)
+
     def update_param_visibility(self, algo):
-        """控制不同算法的参数显示"""
         is_bsbl = (algo == "BSBL_FM")
         self.snr_label.setVisible(is_bsbl)
         self.snr_input.setVisible(is_bsbl)
@@ -140,15 +175,7 @@ class CS_GUI(QWidget):
         self.blklen_label.setVisible(is_bsbl)
         self.blklen_input.setVisible(is_bsbl)
 
-        # 公共参数
-        self.patch_label.setVisible(True)
-        self.patch_size_input.setVisible(True)
-        self.stride_label.setVisible(True)
-        self.stride_input.setVisible(True)
-        # slice index 在 load_file 里控制显示，不在这里管
-
     def load_file(self):
-        """选择并加载 HDF5 文件"""
         file_path, _ = QFileDialog.getOpenFileName(self, "Choose your HDF5 file", "", "HDF5 Files (*.hdf5)")
         if file_path:
             self.image_path = file_path
@@ -158,10 +185,11 @@ class CS_GUI(QWidget):
                 self.image_shape = shape
 
                 if ndim == 2:
+                    H, W = shape
                     self.slice_label.setVisible(False)
                     self.slice_index_input.setVisible(False)
-                    self.slice_index_input.setMaximum(0)
                 elif ndim == 3:
+                    H, W = shape[1], shape[2]
                     self.slice_label.setVisible(True)
                     self.slice_index_input.setVisible(True)
                     self.slice_index_input.setMaximum(shape[0] - 1)
@@ -169,16 +197,24 @@ class CS_GUI(QWidget):
                     self.status_label.setText(f"Wrong image dim: {shape}")
                     return
 
+                # ROI 范围设置
+                self.x_start_input.setRange(0, W - 1)
+                self.x_end_input.setRange(0, W - 1)
+                self.y_start_input.setRange(0, H - 1)
+                self.y_end_input.setRange(0, H - 1)
+                self.x_start_input.setValue(0)
+                self.y_start_input.setValue(0)
+                self.x_end_input.setValue(W - 1)
+                self.y_end_input.setValue(H - 1)
+
                 self.status_label.setText(f"File loaded with dim: {shape}")
             except Exception as e:
                 self.status_label.setText(f"Failed to load file: {e}")
 
     def run_cs(self):
-        """运行压缩感知"""
         if not self.image_path:
             self.status_label.setText("The file hasn't been selected")
             return
-
         if self.image_shape is None:
             self.status_label.setText("Image not properly loaded.")
             return
@@ -195,6 +231,15 @@ class CS_GUI(QWidget):
             "metrics_path": "metrics.json"
         }
 
+        # ROI
+        if not self.use_full_image_checkbox.isChecked():
+            cfg["roi"] = {
+                "x_start": self.x_start_input.value(),
+                "x_end": self.x_end_input.value(),
+                "y_start": self.y_start_input.value(),
+                "y_end": self.y_end_input.value()
+            }
+
         if algorithm == "BSBL_FM":
             cfg["snr"] = self.snr_input.value()
             cfg["learn_lambda"] = self.lambda_selector.currentIndex()
@@ -203,18 +248,19 @@ class CS_GUI(QWidget):
         with open("config.json", "w") as f:
             json.dump(cfg, f)
 
-        # 生成采样 mask
+        # 生成 mask
         try:
-            sampling_rate = self.sampling_input.value()
-            method = self.sampling_method_selector.currentText()
-            if len(self.image_shape) == 2:
-                H, W = self.image_shape
-            elif len(self.image_shape) == 3:
-                H, W = self.image_shape[1], self.image_shape[2]
+            if "roi" in cfg:
+                H = cfg["roi"]["y_end"] - cfg["roi"]["y_start"] + 1
+                W = cfg["roi"]["x_end"] - cfg["roi"]["x_start"] + 1
             else:
-                raise ValueError(f"Unsupported image shape: {self.image_shape}")
+                if len(self.image_shape) == 2:
+                    H, W = self.image_shape
+                else:
+                    H, W = self.image_shape[1], self.image_shape[2]
 
-            mask = generate_sampling_mask(H, W, sampling_rate, method=method)
+            mask = generate_sampling_mask(H, W, self.sampling_input.value(),
+                                          method=self.sampling_method_selector.currentText())
             save_mask_to_mat(mask, "sampling_mask.mat")
         except Exception as e:
             self.status_label.setText(f"Fail to generate sampling mask: {e}")
@@ -229,7 +275,6 @@ class CS_GUI(QWidget):
         self.runner.start()
 
     def on_run_finished(self):
-        """运行完成后显示结果"""
         if os.path.exists("reconstructed.mat"):
             mat_data = loadmat("reconstructed.mat")
             recon = mat_data["recon_img"]
@@ -241,7 +286,6 @@ class CS_GUI(QWidget):
                 self.status_label.setText(f"PSNR={psnr_val:.2f}, SSIM={ssim_val:.4f}")
             else:
                 self.status_label.setText("No metrics")
-
             plt.figure(figsize=(10, 4))
             plt.imshow(recon, cmap="gray")
             plt.title("Recon image")
@@ -254,7 +298,6 @@ class CS_GUI(QWidget):
         self.status_label.setText(f"Fail to run: {error_msg}")
 
     def closeEvent(self, event):
-        """关闭时清理临时文件"""
         temp_files = ["temp_input.mat", "sampling_mask.mat"]
         for file_path in temp_files:
             if os.path.exists(file_path):
