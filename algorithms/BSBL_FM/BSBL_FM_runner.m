@@ -20,6 +20,9 @@ stride      = cfg.stride;       % Patch 移动步长（重叠控制）
 SNR         = cfg.snr;          % 信噪比
 blkLen      = cfg.blk_len;      % BSBL 内部块长度
 LearnLambda = cfg.learn_lambda; % BSBL Lambda 学习方式
+max_iters   = cfg.max_iters;
+epsilon     = cfg.epsilon;
+learntype   = cfg.learntype;
 
 % === 加载图像数据 ===
 if ~isfile('temp_input.mat')
@@ -85,7 +88,7 @@ for i = 1:stride:(H - patch_size + 1)
 
         % === 调用 BSBL-FM 重建 ===
         Result = BSBL_FM(A, y, blkStartLoc, LearnLambda, ...
-            'learntype', 0, 'max_iters', 500, 'epsilon', 1e-7, 'verbose', 0);
+            learntype, max_iters, epsilon, 'verbose', 0);
 
         theta_recon = Result.x;
         x_recon = Psi2D * theta_recon;

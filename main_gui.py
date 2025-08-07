@@ -172,6 +172,32 @@ class CS_GUI(QWidget):
             layout.addWidget(lambda_label)
             layout.addWidget(lambda_selector)
 
+            # max_iters
+            maxiter_label = QLabel("Max Iters:")
+            maxiter_input = QSpinBox()
+            maxiter_input.setRange(10, 10000)
+            maxiter_input.setValue(self.advanced_params.get("max_iters", 500))
+            layout.addWidget(maxiter_label)
+            layout.addWidget(maxiter_input)
+
+            # learntype
+            learntype_label = QLabel("Learn Type:")
+            learntype_selector = QComboBox()
+            learntype_selector.addItems(["No intra-correlation", "Individual intra-correlation", "Unified intra-correlation"])
+            learntype_selector.setCurrentIndex(self.advanced_params.get("learntype", 0))
+            layout.addWidget(learntype_label)
+            layout.addWidget(learntype_selector)
+
+            # epsilon
+            epsilon_label = QLabel("Epsilon:")
+            epsilon_input = QDoubleSpinBox()
+            epsilon_input.setDecimals(8)
+            epsilon_input.setRange(1e-10, 1e-2)
+            epsilon_input.setSingleStep(1e-7)
+            epsilon_input.setValue(self.advanced_params.get("epsilon", 1e-7))
+            layout.addWidget(epsilon_label)
+            layout.addWidget(epsilon_input)
+
         elif algo == "cvx":
             # lambda
             lam_label = QLabel("Lambda:")
@@ -189,6 +215,9 @@ class CS_GUI(QWidget):
                 self.advanced_params["snr"] = snr_input.value()
                 self.advanced_params["blk_len"] = blklen_input.value()
                 self.advanced_params["learn_lambda"] = lambda_selector.currentIndex()
+                self.advanced_params["max_iters"] = maxiter_input.value()
+                self.advanced_params["epsilon"] = epsilon_input.value()
+                self.advanced_params["learntype"] = learntype_selector.currentIndex()
             elif algo == "cvx":
                 self.advanced_params["lam"] = lam_input.value()
             dlg.accept()
@@ -265,6 +294,10 @@ class CS_GUI(QWidget):
             cfg["snr"] = self.advanced_params.get("snr", 30)
             cfg["blk_len"] = self.advanced_params.get("blk_len", 8)
             cfg["learn_lambda"] = self.advanced_params.get("learn_lambda", 0)
+            cfg["max_iters"] = self.advanced_params.get("max_iters", 500)
+            cfg["learntype"] = self.advanced_params.get("learntype", 0)
+            cfg["epsilon"] = self.advanced_params.get("epsilon", 1e-7)
+
         elif algorithm == "cvx":
             cfg["lam"] = self.advanced_params.get("lam", 0.01)
 
