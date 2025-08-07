@@ -55,6 +55,18 @@ class CS_GUI(QWidget):
         self.sampling_method_selector = QComboBox()
         self.sampling_method_selector.addItems(["random", "linehop"])
 
+        # 是否添加噪声
+        self.use_clean_image_checkbox = QCheckBox("Use clean image (no noise)")
+        self.use_clean_image_checkbox.setChecked(True)
+        self.use_clean_image_checkbox.stateChanged.connect(self.toggle_snr_input)
+
+        self.snr_label = QLabel("SNR (dB):")
+        self.snr_input = QSpinBox()
+        self.snr_input.setRange(0, 100)
+        self.snr_input.setValue(30)
+        self.snr_label.setVisible(False)
+        self.snr_input.setVisible(False)
+
         # Patch size
         self.patch_label = QLabel("Patch size:")
         self.patch_size_input = QSpinBox()
@@ -67,7 +79,7 @@ class CS_GUI(QWidget):
         self.stride_input.setRange(1, 512)
         self.stride_input.setValue(16)
 
-        # Slice index（初始隐藏）
+        # Slice index
         self.slice_label = QLabel("Slice index:")
         self.slice_index_input = QSpinBox()
         self.slice_index_input.setRange(0, 999)
@@ -75,7 +87,7 @@ class CS_GUI(QWidget):
         self.slice_label.setVisible(False)
         self.slice_index_input.setVisible(False)
 
-        # ROI 选择
+        # ROI
         self.use_full_image_checkbox = QCheckBox("Use full image")
         self.use_full_image_checkbox.setChecked(True)
         self.use_full_image_checkbox.stateChanged.connect(self.toggle_roi_inputs)
@@ -116,6 +128,9 @@ class CS_GUI(QWidget):
         self.layout.addWidget(self.sampling_input)
         self.layout.addWidget(self.sampling_method_label)
         self.layout.addWidget(self.sampling_method_selector)
+        self.layout.addWidget(self.use_clean_image_checkbox)
+        self.layout.addWidget(self.snr_label)
+        self.layout.addWidget(self.snr_input)
         self.layout.addWidget(self.patch_label)
         self.layout.addWidget(self.patch_size_input)
         self.layout.addWidget(self.stride_label)
@@ -131,6 +146,11 @@ class CS_GUI(QWidget):
         self.layout.addWidget(self.status_label)
 
         self.setLayout(self.layout)
+
+    def toggle_snr_input(self):
+        visible = not self.use_clean_image_checkbox.isChecked()
+        self.snr_label.setVisible(visible)
+        self.snr_input.setVisible(visible)
 
     def toggle_roi_inputs(self):
         visible = not self.use_full_image_checkbox.isChecked()
@@ -148,15 +168,6 @@ class CS_GUI(QWidget):
         algo = self.alg_selector.currentText()
 
         if algo == "BSBL_FM":
-            # SNR
-            snr_label = QLabel("SNR:")
-            snr_input = QSpinBox()
-            snr_input.setRange(0, 100)
-            snr_input.setValue(self.advanced_params.get("snr", 30))
-            layout.addWidget(snr_label)
-            layout.addWidget(snr_input)
-
-            # blk_len
             blklen_label = QLabel("Blk_len:")
             blklen_input = QSpinBox()
             blklen_input.setRange(1, 64)
@@ -164,7 +175,6 @@ class CS_GUI(QWidget):
             layout.addWidget(blklen_label)
             layout.addWidget(blklen_input)
 
-            # Learn Lambda
             lambda_label = QLabel("Learn Lambda:")
             lambda_selector = QComboBox()
             lambda_selector.addItems(["No learning rule", "Medium SNR", "High SNR"])
@@ -172,7 +182,6 @@ class CS_GUI(QWidget):
             layout.addWidget(lambda_label)
             layout.addWidget(lambda_selector)
 
-            # max_iters
             maxiter_label = QLabel("Max Iters:")
             maxiter_input = QSpinBox()
             maxiter_input.setRange(10, 10000)
@@ -180,7 +189,6 @@ class CS_GUI(QWidget):
             layout.addWidget(maxiter_label)
             layout.addWidget(maxiter_input)
 
-            # learntype
             learntype_label = QLabel("Learn Type:")
             learntype_selector = QComboBox()
             learntype_selector.addItems(["No intra-correlation", "Individual intra-correlation", "Unified intra-correlation"])
@@ -188,7 +196,6 @@ class CS_GUI(QWidget):
             layout.addWidget(learntype_label)
             layout.addWidget(learntype_selector)
 
-            # epsilon
             epsilon_label = QLabel("Epsilon:")
             epsilon_input = QDoubleSpinBox()
             epsilon_input.setDecimals(8)
@@ -199,7 +206,6 @@ class CS_GUI(QWidget):
             layout.addWidget(epsilon_input)
 
         elif algo == "cvx":
-            # lambda
             lam_label = QLabel("Lambda:")
             lam_input = QDoubleSpinBox()
             lam_input.setRange(0.0001, 1.0)
@@ -212,7 +218,6 @@ class CS_GUI(QWidget):
 
         def save_and_close():
             if algo == "BSBL_FM":
-                self.advanced_params["snr"] = snr_input.value()
                 self.advanced_params["blk_len"] = blklen_input.value()
                 self.advanced_params["learn_lambda"] = lambda_selector.currentIndex()
                 self.advanced_params["max_iters"] = maxiter_input.value()
@@ -233,8 +238,8 @@ class CS_GUI(QWidget):
             self.image_path = file_path
             try:
                 shape = get_hdf5_image_dims(file_path)
-                ndim = len(shape)
                 self.image_shape = shape
+                ndim = len(shape)
 
                 if ndim == 2:
                     H, W = shape
@@ -290,13 +295,15 @@ class CS_GUI(QWidget):
                 "y_end": self.y_end_input.value()
             }
 
+        if not self.use_clean_image_checkbox.isChecked():
+            cfg["snr"] = self.snr_input.value()
+
         if algorithm == "BSBL_FM":
-            cfg["snr"] = self.advanced_params.get("snr", 30)
             cfg["blk_len"] = self.advanced_params.get("blk_len", 1)
             cfg["learn_lambda"] = self.advanced_params.get("learn_lambda", 0)
             cfg["max_iters"] = self.advanced_params.get("max_iters", 500)
-            cfg["learntype"] = self.advanced_params.get("learntype", 0)
             cfg["epsilon"] = self.advanced_params.get("epsilon", 1e-7)
+            cfg["learntype"] = self.advanced_params.get("learntype", 0)
 
         elif algorithm == "cvx":
             cfg["lam"] = self.advanced_params.get("lam", 0.01)

@@ -15,14 +15,13 @@ fclose(fid);
 cfg = jsondecode(str);
 
 % === 读取配置参数 ===
-patch_size  = cfg.patch_size;   % Patch 大小
-stride      = cfg.stride;       % Patch 移动步长（重叠控制）
-SNR         = cfg.snr;          % 信噪比
-blkLen      = cfg.blk_len;      % BSBL 内部块长度
-LearnLambda = cfg.learn_lambda; % BSBL Lambda 学习方式
-max_iters   = cfg.max_iters;
-epsilon     = cfg.epsilon;
-learntype   = cfg.learntype;
+patch_size  = cfg.patch_size;         % Patch 大小
+stride      = cfg.stride;             % Patch 移动步长
+blkLen      = cfg.blk_len;            % 块长度
+LearnLambda = cfg.learn_lambda;       % 是否学习 lambda
+max_iters   = cfg.max_iters;          % 最大迭代次数
+epsilon     = cfg.epsilon;            % 收敛精度
+learntype   = cfg.learntype;          % 学习类型
 
 % === 加载图像数据 ===
 if ~isfile('temp_input.mat')
@@ -30,6 +29,16 @@ if ~isfile('temp_input.mat')
 end
 S = load('temp_input.mat');
 img2d = S.input_image;
+
+% === 全图添加噪声 ===
+if isfield(cfg, 'snr') && ~isempty(cfg.snr)
+    sigma = std(img2d(:)) * 10^(-cfg.snr / 20);
+    img2d = img2d + sigma * randn(size(img2d));
+    img2d = min(max(img2d, 0), 1);  % 保证仍在 [0, 1]
+    fprintf('[INFO] Added global noise with SNR = %.1f dB\n', cfg.snr);
+else
+    fprintf('[INFO] No noise added (clean input)\n');
+end
 
 % === 加载采样 mask ===
 if ~isfile('sampling_mask.mat')
@@ -39,76 +48,69 @@ mask_data = load('sampling_mask.mat');
 if ~isfield(mask_data, 'mask')
     error("sampling_mask.mat does not contain variable 'mask'");
 end
-global_mask = logical(mask_data.mask);  % 转为逻辑型
+global_mask = logical(mask_data.mask);
 
+% === 初始化 ===
 [H, W] = size(img2d);
 fprintf('H = %d, W = %d\n', H, W);
-
 recon_img = zeros(H, W);
 count_map = zeros(H, W);
 
-% === DCT 基矩阵 ===
-N         = patch_size^2;
+% === DCT 基 ===
+N = patch_size^2;
 blkStartLoc = 1:blkLen:N;
-D         = dctmtx(patch_size);
-Psi2D     = kron(D', D');
+D = dctmtx(patch_size);
+Psi2D = kron(D', D');
 
 fprintf("=== BSBL-FM Reconstruction with stride=%d, patch_size=%d ===\n", stride, patch_size);
 
-% === 主循环（支持重叠 patch） ===
+% === 重建主循环 ===
 for i = 1:stride:(H - patch_size + 1)
     for j = 1:stride:(W - patch_size + 1)
         row_range = i:(i + patch_size - 1);
         col_range = j:(j + patch_size - 1);
 
-        % === 提取 patch 图像 & 对应 mask ===
         patch = img2d(row_range, col_range);
         patch_mask = global_mask(row_range, col_range);
-
-        % 将 mask 展平成向量，找到采样点索引
         sample_idx = find(patch_mask(:));
 
-        % 若采样点过少则跳过
         if numel(sample_idx) < 5
             continue;
         end
 
-        % === 构造采样矩阵 Φ ===
         Phi = eye(N);
         Phi = Phi(sample_idx, :);
 
-        % === 压缩感知测量 ===
         x = patch(:);
-        y_clean = Phi * x;
-        noise_std = std(y_clean) * 10^(-SNR / 20);
-        y = y_clean + noise_std * randn(size(y_clean));
+        y = Phi * x;
 
-        % === 构造 A 矩阵 ===
         A = Phi * Psi2D;
 
-        % === 调用 BSBL-FM 重建 ===
+        % === BSBL-FM 重建 ===
         Result = BSBL_FM(A, y, blkStartLoc, LearnLambda, ...
-            'learntype', learntype, 'max_iters', max_iters, 'epsilon', epsilon, 'verbose', 0);
+            'learntype', learntype, ...
+            'max_iters', max_iters, ...
+            'epsilon', epsilon, ...
+            'verbose', 0);
 
         theta_recon = Result.x;
         x_recon = Psi2D * theta_recon;
         patch_recon = reshape(x_recon, patch_size, patch_size);
-        patch_recon = min(max(patch_recon, 0), 1);  % clip 到 [0, 1]
+        patch_recon = min(max(patch_recon, 0), 1);  % 限制在 [0, 1]
 
-        % === 累加重建结果 ===
         recon_img(row_range, col_range) = recon_img(row_range, col_range) + patch_recon;
         count_map(row_range, col_range) = count_map(row_range, col_range) + 1;
     end
 end
 
-% === 归一化重叠区域 ===
+% === 重叠区域归一化 ===
 count_map(count_map == 0) = 1;
 recon_img = recon_img ./ count_map;
 
-% === 保存重建结果 ===
+% === 保存结果 ===
 save(cfg.output_path, 'recon_img');
 
-% === 计算并保存指标 ===
+% === 计算评价指标 ===
 psnr_val = psnr(recon_img, img2d);
 ssim_val = ssim(recon_img, img2d);
 metrics.psnr = psnr_val;
@@ -117,4 +119,3 @@ metrics.ssim = ssim_val;
 fid = fopen(cfg.metrics_path, 'w');
 fwrite(fid, jsonencode(metrics), 'char');
 fclose(fid);
-
