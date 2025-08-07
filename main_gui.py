@@ -41,7 +41,7 @@ class CS_GUI(QWidget):
 
         # 算法选择
         self.alg_selector = QComboBox()
-        self.alg_selector.addItems(["cvx", "BSBL_FM"])
+        self.alg_selector.addItems(["cvx", "BSBL_FM", "spg_bp"])
 
         # 采样率
         self.sampling_label = QLabel("Sampling rate:")
@@ -114,6 +114,8 @@ class CS_GUI(QWidget):
 
         self.advanced_button = QPushButton("Advanced Settings")
         self.advanced_button.clicked.connect(self.open_advanced_settings)
+        self.alg_selector.currentTextChanged.connect(self.toggle_advanced_button_visibility)
+
 
         self.run_button = QPushButton("Do compressed sensing")
         self.run_button.clicked.connect(self.run_cs)
@@ -146,6 +148,12 @@ class CS_GUI(QWidget):
         self.layout.addWidget(self.status_label)
 
         self.setLayout(self.layout)
+
+    def toggle_advanced_button_visibility(self, text):
+        if text == "spg_bp":
+            self.advanced_button.setVisible(False)
+        else:
+            self.advanced_button.setVisible(True)
 
     def toggle_snr_input(self):
         visible = not self.use_clean_image_checkbox.isChecked()
@@ -307,6 +315,10 @@ class CS_GUI(QWidget):
 
         elif algorithm == "cvx":
             cfg["lam"] = self.advanced_params.get("lam", 0.01)
+
+        elif algorithm == "spg_bp":
+            pass  # 当前不需要额外参数
+
 
         with open("config.json", "w") as f:
             json.dump(cfg, f)
