@@ -25,13 +25,18 @@ image = mat_data["input_image"]
 # 加载采样 mask
 mask = loadmat("sampling_mask.mat")["mask"]
 
+# 必填参数（直接取值）
+patch_size = cfg["patch_size"]
+stride = cfg["stride"]
+lam = cfg["lam"]
+
 # 执行重建
 recon = reconstruct_from_mask(
     image,
     mask,
-    patch_size=cfg["patch_size"],  # 改为 patch_size
-    stride=cfg["stride"],          # 新增 stride 参数
-    lam=0.01,
+    patch_size=patch_size,
+    stride=stride,
+    lam=lam,
     min_samples=5
 )
 

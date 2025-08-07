@@ -7,7 +7,7 @@ from scipy.io import loadmat
 
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QFileDialog, QVBoxLayout,
-    QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QHBoxLayout
+    QComboBox, QSpinBox, QDoubleSpinBox, QCheckBox, QHBoxLayout, QDialog
 )
 from PyQt5.QtCore import QThread, pyqtSignal
 
@@ -33,6 +33,7 @@ class CS_GUI(QWidget):
         self.image_path = None
         self.image_shape = None
         self.roi = None
+        self.advanced_params = {}  # 存放高级参数
         self.initUI()
 
     def initUI(self):
@@ -41,7 +42,6 @@ class CS_GUI(QWidget):
         # 算法选择
         self.alg_selector = QComboBox()
         self.alg_selector.addItems(["cvx", "BSBL_FM"])
-        self.alg_selector.currentTextChanged.connect(self.update_param_visibility)
 
         # 采样率
         self.sampling_label = QLabel("Sampling rate:")
@@ -59,13 +59,13 @@ class CS_GUI(QWidget):
         self.patch_label = QLabel("Patch size:")
         self.patch_size_input = QSpinBox()
         self.patch_size_input.setRange(8, 512)
-        self.patch_size_input.setValue(64)
+        self.patch_size_input.setValue(32)
 
         # Stride
         self.stride_label = QLabel("Stride:")
         self.stride_input = QSpinBox()
         self.stride_input.setRange(1, 512)
-        self.stride_input.setValue(8)
+        self.stride_input.setValue(16)
 
         # Slice index（初始隐藏）
         self.slice_label = QLabel("Slice index:")
@@ -81,7 +81,6 @@ class CS_GUI(QWidget):
         self.use_full_image_checkbox.stateChanged.connect(self.toggle_roi_inputs)
 
         self.roi_label = QLabel("ROI coordinates (x_start, x_end, y_start, y_end):")
-
         roi_layout = QHBoxLayout()
         self.x_start_input = QSpinBox()
         self.x_end_input = QSpinBox()
@@ -91,31 +90,18 @@ class CS_GUI(QWidget):
         roi_layout.addWidget(self.x_end_input)
         roi_layout.addWidget(self.y_start_input)
         roi_layout.addWidget(self.y_end_input)
-
         self.roi_label.setVisible(False)
         self.x_start_input.setVisible(False)
         self.x_end_input.setVisible(False)
         self.y_start_input.setVisible(False)
         self.y_end_input.setVisible(False)
 
-        # BSBL 专用参数
-        self.snr_label = QLabel("SNR:")
-        self.snr_input = QSpinBox()
-        self.snr_input.setRange(0, 100)
-        self.snr_input.setValue(30)
-
-        self.blklen_label = QLabel("Blk_len:")
-        self.blklen_input = QSpinBox()
-        self.blklen_input.setRange(1, 64)
-        self.blklen_input.setValue(8)
-
-        self.lambda_label = QLabel("Learn Lambda:")
-        self.lambda_selector = QComboBox()
-        self.lambda_selector.addItems(["No learning rule", "Medium SNR", "High SNR"])
-
         # 按钮
         self.load_button = QPushButton("Choose your HDF5 file")
         self.load_button.clicked.connect(self.load_file)
+
+        self.advanced_button = QPushButton("Advanced Settings")
+        self.advanced_button.clicked.connect(self.open_advanced_settings)
 
         self.run_button = QPushButton("Do compressed sensing")
         self.run_button.clicked.connect(self.run_cs)
@@ -126,37 +112,25 @@ class CS_GUI(QWidget):
         # 布局
         self.layout.addWidget(QLabel("Choose your algorithm:"))
         self.layout.addWidget(self.alg_selector)
-
         self.layout.addWidget(self.sampling_label)
         self.layout.addWidget(self.sampling_input)
         self.layout.addWidget(self.sampling_method_label)
         self.layout.addWidget(self.sampling_method_selector)
-
         self.layout.addWidget(self.patch_label)
         self.layout.addWidget(self.patch_size_input)
         self.layout.addWidget(self.stride_label)
         self.layout.addWidget(self.stride_input)
-
         self.layout.addWidget(self.slice_label)
         self.layout.addWidget(self.slice_index_input)
-
         self.layout.addWidget(self.use_full_image_checkbox)
         self.layout.addWidget(self.roi_label)
         self.layout.addLayout(roi_layout)
-
-        self.layout.addWidget(self.snr_label)
-        self.layout.addWidget(self.snr_input)
-        self.layout.addWidget(self.blklen_label)
-        self.layout.addWidget(self.blklen_input)
-        self.layout.addWidget(self.lambda_label)
-        self.layout.addWidget(self.lambda_selector)
-
+        self.layout.addWidget(self.advanced_button)
         self.layout.addWidget(self.load_button)
         self.layout.addWidget(self.run_button)
         self.layout.addWidget(self.status_label)
 
         self.setLayout(self.layout)
-        self.update_param_visibility("cvx")
 
     def toggle_roi_inputs(self, state):
         visible = not self.use_full_image_checkbox.isChecked()
@@ -166,14 +140,63 @@ class CS_GUI(QWidget):
         self.y_start_input.setVisible(visible)
         self.y_end_input.setVisible(visible)
 
-    def update_param_visibility(self, algo):
-        is_bsbl = (algo == "BSBL_FM")
-        self.snr_label.setVisible(is_bsbl)
-        self.snr_input.setVisible(is_bsbl)
-        self.lambda_label.setVisible(is_bsbl)
-        self.lambda_selector.setVisible(is_bsbl)
-        self.blklen_label.setVisible(is_bsbl)
-        self.blklen_input.setVisible(is_bsbl)
+    def open_advanced_settings(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Advanced Settings")
+        layout = QVBoxLayout()
+
+        algo = self.alg_selector.currentText()
+
+        if algo == "BSBL_FM":
+            # SNR
+            snr_label = QLabel("SNR:")
+            snr_input = QSpinBox()
+            snr_input.setRange(0, 100)
+            snr_input.setValue(self.advanced_params.get("snr", 30))
+            layout.addWidget(snr_label)
+            layout.addWidget(snr_input)
+
+            # blk_len
+            blklen_label = QLabel("Blk_len:")
+            blklen_input = QSpinBox()
+            blklen_input.setRange(1, 64)
+            blklen_input.setValue(self.advanced_params.get("blk_len", 8))
+            layout.addWidget(blklen_label)
+            layout.addWidget(blklen_input)
+
+            # Learn Lambda
+            lambda_label = QLabel("Learn Lambda:")
+            lambda_selector = QComboBox()
+            lambda_selector.addItems(["No learning rule", "Medium SNR", "High SNR"])
+            lambda_selector.setCurrentIndex(self.advanced_params.get("learn_lambda", 0))
+            layout.addWidget(lambda_label)
+            layout.addWidget(lambda_selector)
+
+        elif algo == "cvx":
+            # lambda
+            lam_label = QLabel("Lambda:")
+            lam_input = QDoubleSpinBox()
+            lam_input.setRange(0.0001, 1.0)
+            lam_input.setDecimals(4)
+            lam_input.setValue(self.advanced_params.get("lam", 0.01))
+            layout.addWidget(lam_label)
+            layout.addWidget(lam_input)
+
+        ok_btn = QPushButton("OK")
+
+        def save_and_close():
+            if algo == "BSBL_FM":
+                self.advanced_params["snr"] = snr_input.value()
+                self.advanced_params["blk_len"] = blklen_input.value()
+                self.advanced_params["learn_lambda"] = lambda_selector.currentIndex()
+            elif algo == "cvx":
+                self.advanced_params["lam"] = lam_input.value()
+            dlg.accept()
+
+        ok_btn.clicked.connect(save_and_close)
+        layout.addWidget(ok_btn)
+        dlg.setLayout(layout)
+        dlg.exec_()
 
     def load_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Choose your HDF5 file", "", "HDF5 Files (*.hdf5)")
@@ -197,7 +220,6 @@ class CS_GUI(QWidget):
                     self.status_label.setText(f"Wrong image dim: {shape}")
                     return
 
-                # ROI 范围设置
                 self.x_start_input.setRange(0, W - 1)
                 self.x_end_input.setRange(0, W - 1)
                 self.y_start_input.setRange(0, H - 1)
@@ -231,7 +253,6 @@ class CS_GUI(QWidget):
             "metrics_path": "metrics.json"
         }
 
-        # ROI
         if not self.use_full_image_checkbox.isChecked():
             cfg["roi"] = {
                 "x_start": self.x_start_input.value(),
@@ -241,14 +262,15 @@ class CS_GUI(QWidget):
             }
 
         if algorithm == "BSBL_FM":
-            cfg["snr"] = self.snr_input.value()
-            cfg["learn_lambda"] = self.lambda_selector.currentIndex()
-            cfg["blk_len"] = self.blklen_input.value()
+            cfg["snr"] = self.advanced_params.get("snr", 30)
+            cfg["blk_len"] = self.advanced_params.get("blk_len", 8)
+            cfg["learn_lambda"] = self.advanced_params.get("learn_lambda", 0)
+        elif algorithm == "cvx":
+            cfg["lam"] = self.advanced_params.get("lam", 0.01)
 
         with open("config.json", "w") as f:
             json.dump(cfg, f)
 
-        # 生成 mask
         try:
             if "roi" in cfg:
                 H = cfg["roi"]["y_end"] - cfg["roi"]["y_start"] + 1
@@ -303,9 +325,8 @@ class CS_GUI(QWidget):
             if os.path.exists(file_path):
                 try:
                     os.remove(file_path)
-                    print(f"Deleted temporary file: {file_path}")
-                except Exception as e:
-                    print(f"Failed to delete {file_path}: {e}")
+                except Exception:
+                    pass
         event.accept()
 
 
