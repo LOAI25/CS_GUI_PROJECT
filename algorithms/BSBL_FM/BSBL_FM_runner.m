@@ -88,7 +88,7 @@ for i = 1:stride:(H - patch_size + 1)
 
         % === 调用 BSBL-FM 重建 ===
         Result = BSBL_FM(A, y, blkStartLoc, LearnLambda, ...
-            learntype, max_iters, epsilon, 'verbose', 0);
+            'learntype', learntype, 'max_iters', max_iters, 'epsilon', epsilon, 'verbose', 0);
 
         theta_recon = Result.x;
         x_recon = Psi2D * theta_recon;

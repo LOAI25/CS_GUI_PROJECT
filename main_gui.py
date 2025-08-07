@@ -132,7 +132,7 @@ class CS_GUI(QWidget):
 
         self.setLayout(self.layout)
 
-    def toggle_roi_inputs(self, state):
+    def toggle_roi_inputs(self):
         visible = not self.use_full_image_checkbox.isChecked()
         self.roi_label.setVisible(visible)
         self.x_start_input.setVisible(visible)
@@ -160,7 +160,7 @@ class CS_GUI(QWidget):
             blklen_label = QLabel("Blk_len:")
             blklen_input = QSpinBox()
             blklen_input.setRange(1, 64)
-            blklen_input.setValue(self.advanced_params.get("blk_len", 8))
+            blklen_input.setValue(self.advanced_params.get("blk_len", 1))
             layout.addWidget(blklen_label)
             layout.addWidget(blklen_input)
 
@@ -292,7 +292,7 @@ class CS_GUI(QWidget):
 
         if algorithm == "BSBL_FM":
             cfg["snr"] = self.advanced_params.get("snr", 30)
-            cfg["blk_len"] = self.advanced_params.get("blk_len", 8)
+            cfg["blk_len"] = self.advanced_params.get("blk_len", 1)
             cfg["learn_lambda"] = self.advanced_params.get("learn_lambda", 0)
             cfg["max_iters"] = self.advanced_params.get("max_iters", 500)
             cfg["learntype"] = self.advanced_params.get("learntype", 0)
