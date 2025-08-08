@@ -41,7 +41,8 @@ class CS_GUI(QWidget):
 
         # 算法选择
         self.alg_selector = QComboBox()
-        self.alg_selector.addItems(["cvx", "BSBL_FM", "spg_bp"])
+        self.alg_selector.addItems(["cvx", "BSBL_FM", "spg_bp", "CoSaMP"])
+
 
         # 采样率
         self.sampling_label = QLabel("Sampling rate:")
@@ -222,6 +223,21 @@ class CS_GUI(QWidget):
             layout.addWidget(lam_label)
             layout.addWidget(lam_input)
 
+        elif algo == "CoSaMP":
+            maxiter_label = QLabel("Max Iters:")
+            maxiter_input = QSpinBox()
+            maxiter_input.setRange(1, 1000)
+            maxiter_input.setValue(self.advanced_params.get("max_iters", 200))
+            layout.addWidget(maxiter_label)
+            layout.addWidget(maxiter_input)
+
+            k_label = QLabel("Sparsity K:")
+            k_input = QSpinBox()
+            k_input.setRange(1, 4096)
+            k_input.setValue(self.advanced_params.get("K", 30))
+            layout.addWidget(k_label)
+            layout.addWidget(k_input)
+
         ok_btn = QPushButton("OK")
 
         def save_and_close():
@@ -233,6 +249,10 @@ class CS_GUI(QWidget):
                 self.advanced_params["learntype"] = learntype_selector.currentIndex()
             elif algo == "cvx":
                 self.advanced_params["lam"] = lam_input.value()
+            elif algo == "CoSaMP":
+                self.advanced_params["max_iters"] = maxiter_input.value()
+                self.advanced_params["K"] = k_input.value()
+
             dlg.accept()
 
         ok_btn.clicked.connect(save_and_close)
@@ -315,6 +335,10 @@ class CS_GUI(QWidget):
 
         elif algorithm == "cvx":
             cfg["lam"] = self.advanced_params.get("lam", 0.01)
+        elif algorithm == "CoSaMP":
+            cfg["max_iters"] = self.advanced_params.get("max_iters", 200)
+            cfg["K"] = self.advanced_params.get("K", 30)
+
 
         elif algorithm == "spg_bp":
             pass  # 当前不需要额外参数

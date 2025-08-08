@@ -3,12 +3,12 @@ import cvxpy as cp
 from scipy.fftpack import dct
 import time
 
-def dct2d_matrix_inverse(block_size):
-    D1 = dct(np.eye(block_size), norm='ortho')
+def dct2d_matrix_inverse(patch_size):
+    D1 = dct(np.eye(patch_size), norm='ortho')
     return np.kron(D1.T, D1.T)
 
 #  recon for single patch (2D DCT + LASSO + mean adjustment)
-def reconstruct_from_mask(image, mask, patch_size, stride, lam=0.01, min_samples=5):
+def reconstruct_from_mask_cvx(image, mask, patch_size, stride, lam=0.01, min_samples=5):
     H, W = image.shape
     N = patch_size * patch_size
     Psi_inv = dct2d_matrix_inverse(patch_size)  # Psi^{-1} ∈ R^{N×N}

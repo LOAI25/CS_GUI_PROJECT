@@ -7,3 +7,6 @@ sampling_mask.mat
 
 # Python cache
 __pycache__/
+
+
+.DS_Store

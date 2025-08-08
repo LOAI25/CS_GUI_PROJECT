@@ -3,7 +3,7 @@ import os
 import json
 import numpy as np
 from scipy.io import loadmat, savemat
-from algorithms.cvx.cvx import reconstruct_from_mask
+from algorithms.cvx.cvx import reconstruct_from_mask_cvx
 from algorithms.common import evaluate_reconstruction
 
 # 确保项目根路径在 sys.path
@@ -41,7 +41,7 @@ stride = cfg["stride"]
 lam = cfg["lam"]
 
 # === 执行重建 ===
-recon = reconstruct_from_mask(
+recon = reconstruct_from_mask_cvx(
     image,
     mask,
     patch_size=patch_size,

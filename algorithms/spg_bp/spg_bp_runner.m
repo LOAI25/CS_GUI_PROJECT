@@ -3,6 +3,8 @@ clear; clc;
 % === 切换到项目根目录 ===
 cd(fullfile('..', '..'));
 addpath(fileparts(mfilename('fullpath')));
+addpath(genpath(fullfile(fileparts(mfilename('fullpath')), 'spgl1-master')));
+
 
 % === 加载配置 ===
 fid = fopen('config.json');

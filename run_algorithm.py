@@ -75,12 +75,22 @@ try:
 
         runner_script_rel = os.path.join("algorithms", algo, f"{algo}_runner.py")
 
-        subprocess.run(
-            ["conda", "run", "-n", env_name, "python", runner_script_rel],
-            check=True,
-            cwd=project_root,
-            env=env
-        )
+        if env_name.startswith("/"):  # 如果是绝对路径
+            python_executable = os.path.join(env_name, "bin", "python")
+            subprocess.run(
+                [python_executable, runner_script_rel],
+                check=True,
+                cwd=project_root,
+                env=env
+            )
+        else:  # 如果只是名字
+            subprocess.run(
+                ["conda", "run", "-n", env_name, "python", runner_script_rel],
+                check=True,
+                cwd=project_root,
+                env=env
+            )
+
 
 finally:
     delete_temp_mat()
