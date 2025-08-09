@@ -41,7 +41,7 @@ class CS_GUI(QWidget):
 
         # 算法选择
         self.alg_selector = QComboBox()
-        self.alg_selector.addItems(["cvx", "BSBL_FM", "spg_bp", "CoSaMP"])
+        self.alg_selector.addItems(["cvx", "BSBL_FM", "spg_bp", "CoSaMP", "FISTA"])
 
 
         # 采样率
@@ -238,6 +238,50 @@ class CS_GUI(QWidget):
             layout.addWidget(k_label)
             layout.addWidget(k_input)
 
+        elif algo == "FISTA":
+            lam_label = QLabel("lambda:")
+            lam_input = QDoubleSpinBox()
+            lam_input.setRange(1e-6, 1.0)
+            lam_input.setDecimals(6)
+            lam_input.setValue(self.advanced_params.get("lambda", 0.02))
+            layout.addWidget(lam_label); layout.addWidget(lam_input)
+
+            bt_label = QLabel("Use backtracking:")
+            bt_checkbox = QCheckBox()
+            bt_checkbox.setChecked(self.advanced_params.get("fista_backtracking", False))
+            layout.addWidget(bt_label); layout.addWidget(bt_checkbox)
+
+            L0_label = QLabel("L0:")
+            L0_input = QDoubleSpinBox()
+            L0_input.setRange(1e-6, 1e6); L0_input.setDecimals(6)
+            L0_input.setValue(self.advanced_params.get("L0", 1.0))
+            layout.addWidget(L0_label); layout.addWidget(L0_input)
+
+            eta_label = QLabel("eta:")
+            eta_input = QDoubleSpinBox()
+            eta_input.setRange(1.0, 10.0); eta_input.setDecimals(3)
+            eta_input.setValue(self.advanced_params.get("eta", 1.5))
+            layout.addWidget(eta_label); layout.addWidget(eta_input)
+
+            it_label = QLabel("Max Iters:")
+            it_input = QSpinBox()
+            it_input.setRange(10, 100000)
+            it_input.setValue(self.advanced_params.get("max_iters", 500))
+            layout.addWidget(it_label); layout.addWidget(it_input)
+
+            eps_label = QLabel("Epsilon:")
+            eps_input = QDoubleSpinBox()
+            eps_input.setRange(1e-12, 1e-2); eps_input.setDecimals(12)
+            eps_input.setSingleStep(1e-6)
+            eps_input.setValue(self.advanced_params.get("epsilon", 1e-6))
+            layout.addWidget(eps_label); layout.addWidget(eps_input)
+
+            pos_label = QLabel("Nonnegative coefficients:")
+            pos_checkbox = QCheckBox()
+            pos_checkbox.setChecked(self.advanced_params.get("fista_pos", False))
+            layout.addWidget(pos_label); layout.addWidget(pos_checkbox)
+
+
         ok_btn = QPushButton("OK")
 
         def save_and_close():
@@ -252,6 +296,15 @@ class CS_GUI(QWidget):
             elif algo == "CoSaMP":
                 self.advanced_params["max_iters"] = maxiter_input.value()
                 self.advanced_params["K"] = k_input.value()
+            elif algo == "FISTA":
+                self.advanced_params["lambda"] = lam_input.value()
+                self.advanced_params["fista_backtracking"] = bt_checkbox.isChecked()
+                self.advanced_params["L0"] = L0_input.value()
+                self.advanced_params["eta"] = eta_input.value()
+                self.advanced_params["max_iters"] = it_input.value()
+                self.advanced_params["epsilon"] = eps_input.value()
+                self.advanced_params["fista_pos"] = pos_checkbox.isChecked()
+
 
             dlg.accept()
 
@@ -338,6 +391,15 @@ class CS_GUI(QWidget):
         elif algorithm == "CoSaMP":
             cfg["max_iters"] = self.advanced_params.get("max_iters", 200)
             cfg["K"] = self.advanced_params.get("K", 30)
+        elif algorithm == "FISTA":
+            cfg["lambda"] = self.advanced_params.get("lambda", 0.02)
+            cfg["fista_backtracking"] = self.advanced_params.get("fista_backtracking", False)
+            cfg["L0"] = self.advanced_params.get("L0", 1.0)
+            cfg["eta"] = self.advanced_params.get("eta", 1.5)
+            cfg["max_iters"] = self.advanced_params.get("max_iters", 500)
+            cfg["epsilon"] = self.advanced_params.get("epsilon", 1e-6)
+            cfg["fista_pos"] = self.advanced_params.get("fista_pos", False)
+
 
 
         elif algorithm == "spg_bp":
