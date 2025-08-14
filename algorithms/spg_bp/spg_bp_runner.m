@@ -26,6 +26,7 @@ if ~isfile('temp_input.mat')
 end
 S = load('temp_input.mat');
 img2d = S.input_image;
+ref_img = img2d;
 
 % === 加载采样 mask ===
 if ~isfile('sampling_mask.mat')
@@ -99,8 +100,8 @@ recon_img = recon_img ./ count_map;
 save(cfg.output_path, 'recon_img');
 
 % === 保存指标 ===
-psnr_val = psnr(recon_img, img2d);
-ssim_val = ssim(recon_img, img2d);
+psnr_val = psnr(recon_img, ref_img);
+ssim_val = ssim(recon_img, ref_img);
 metrics.psnr = psnr_val;
 metrics.ssim = ssim_val;
 

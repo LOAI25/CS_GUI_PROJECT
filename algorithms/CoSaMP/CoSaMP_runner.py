@@ -17,6 +17,19 @@ with open("config.json", "r") as f:
 
 # === 加载图像 & mask ===
 image = loadmat("temp_input.mat")["input_image"]
+
+ref_image = image
+
+# === 全图添加噪声（若指定 SNR） ===
+if "snr" in cfg and cfg["snr"] is not None:
+    snr_db = cfg["snr"]
+    sigma = np.std(image) * 10 ** (-snr_db / 20)
+    noise = sigma * np.random.randn(*image.shape)
+    image = np.clip(image + noise, 0, 1)
+    print(f"[INFO] Added global Gaussian noise with SNR = {snr_db:.1f} dB")
+else:
+    print("[INFO] No noise added (clean input)")
+
 mask = loadmat("sampling_mask.mat")["mask"]
 
 # === 基本参数 ===
@@ -39,6 +52,6 @@ recon = reconstruct_from_mask_cosamp(
 savemat(cfg["output_path"], {"recon_img": recon})
 
 # === 保存评价指标 ===
-psnr_val, ssim_val = evaluate_reconstruction(image, recon)
+psnr_val, ssim_val = evaluate_reconstruction(ref_image, recon)
 with open(cfg["metrics_path"], "w") as f:
     json.dump({"psnr": psnr_val, "ssim": ssim_val}, f)

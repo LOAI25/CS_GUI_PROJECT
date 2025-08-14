@@ -21,6 +21,7 @@ if not os.path.exists(mat_path):
     raise FileNotFoundError("Can't find temp_input.mat")
 mat_data = loadmat(mat_path)
 image = mat_data["input_image"]
+ref_image = image
 
 # === 全图添加噪声（若指定 SNR） ===
 if "snr" in cfg and cfg["snr"] is not None:
@@ -54,7 +55,7 @@ recon = reconstruct_from_mask_cvx(
 savemat(cfg["output_path"], {"recon_img": recon})
 
 # === 计算并保存评价指标 ===
-psnr_val, ssim_val = evaluate_reconstruction(image, recon)
+psnr_val, ssim_val = evaluate_reconstruction(ref_image, recon)
 with open(cfg["metrics_path"], "w") as f:
     json.dump({"psnr": psnr_val, "ssim": ssim_val}, f)
 
