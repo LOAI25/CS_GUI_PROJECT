@@ -1,0 +1,24 @@
+Third-Party Code Notices and Licenses
+--------------------------------------
+
+This project uses the following third-party code, all used as-is without modification:
+
+1. BSBL-FM
+   - Source: liubenyuan/BSBL-FM (GitHub)
+   - Link: https://github.com/liubenyuan/BSBL-FM
+   - License: None specified by the author — no license file found.
+   - Usage: Used as-is for block sparse Bayesian learning in image reconstruction.
+   - Note: No explicit license — rights reserved by the author.
+
+2. FISTA (MATLAB implementation)
+   - Source: tiepvupsu/FISTA (GitHub)
+   - Link: https://github.com/tiepvupsu/FISTA
+   - License: None specified by the author — no license file found.
+   - Usage: Used as-is for FISTA-based sparse reconstruction.
+   - Note: No explicit license — rights reserved by the author.
+
+3. SPGL1
+   - Source: mpf/spgl1 (GitHub)
+   - Link: https://github.com/mpf/spgl1
+   - License: GNU Lesser General Public License v2.1 (see LICENSE_SPGL1.txt)
+   - Usage: Used as-is via spg_bp for sparse recovery tasks
