@@ -7,6 +7,8 @@ from scipy.io import loadmat
 import numpy as np
 import math
 import glob
+import time
+
 
 from PyQt5.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QFileDialog, QVBoxLayout,
@@ -548,6 +550,12 @@ class CS_GUI(QWidget):
                 json.dump(cfg, f)
             self.status_label.setText(f"Running {algo} ...")
             QApplication.processEvents()
+
+            if not hasattr(self, "_algo_t0"):
+                self._algo_t0 = {}
+            self._algo_t0[algo] = time.perf_counter()
+
+
             self.runner = AlgorithmRunner(algo)
             self.runner.finished.connect(on_finished)
             self.runner.failed.connect(on_failed)
@@ -561,6 +569,7 @@ class CS_GUI(QWidget):
                     recon = mat_data["recon_img"]
                 else:
                     recon = None
+
                 metrics_path = f"metrics_{algo_name}.json"
                 if os.path.exists(metrics_path):
                     with open(metrics_path) as f:
@@ -569,16 +578,40 @@ class CS_GUI(QWidget):
                     ssim_val = metrics.get("ssim", 0.0)
                 else:
                     psnr_val = ssim_val = 0.0
+
+                # === 结束计时 ===
+                t0 = getattr(self, "_algo_t0", {}).pop(algo_name, None)
+                elapsed = (time.perf_counter() - t0) if t0 is not None else 0.0
+
                 self._results[algo_name] = {
-                    "recon": recon, "psnr": psnr_val, "ssim": ssim_val
+                    "recon": recon,
+                    "psnr": psnr_val,
+                    "ssim": ssim_val,
+                    "time": elapsed,        
                 }
+
+                # 可选：把耗时也写回该算法的 metrics 文件
+                try:
+                    if os.path.exists(metrics_path):
+                        metrics["time_sec"] = elapsed
+                        with open(metrics_path, "w") as f:
+                            json.dump(metrics, f)
+                except Exception:
+                    pass
+
             except Exception as e:
                 self.status_label.setText(f"{algo_name} finished but failed to load outputs: {e}")
             start_next()
 
+
         def on_failed(algo_name, error_msg):
+            if hasattr(self, "_algo_t0"):
+                self._algo_t0.pop(algo_name, None)
+
             self.status_label.setText(f"Fail to run {algo_name}: {error_msg}")
             start_next()
+
+
         self.status_label.setText("The algorithms are working (queued)")
         QApplication.processEvents()
         start_next()
@@ -605,7 +638,10 @@ class CS_GUI(QWidget):
                 continue
             tiles.append(img)
             titles.append(algo)
-            subtitles.append(f"PSNR={res.get('psnr',0):.2f} dB, SSIM={res.get('ssim',0):.4f}")
+            subtitles.append(
+                f"PSNR={res.get('psnr',0):.2f} dB, SSIM={res.get('ssim',0):.4f}, t={res.get('time',0):.2f}s"
+            )
+
 
         n = len(tiles)
         if n == 0:
