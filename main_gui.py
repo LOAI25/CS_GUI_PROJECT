@@ -398,8 +398,10 @@ class CS_GUI(QWidget):
         dlg.exec_()
 
 
+
     def load_file(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "Choose your HDF5 file", "", "HDF5 Files (*.hdf5)")
+        MIN_ROI_SIZE = 8  # ROI 最小像素宽度
         if file_path:
             self.image_path = file_path
             try:
@@ -419,26 +421,53 @@ class CS_GUI(QWidget):
                 else:
                     self.status_label.setText(f"Wrong image dim: {shape}")
                     return
-                
-                if H < 8 or W < 8:
-                    self.status_label.setText("Image size too small (must be at least 8 pixels in both dimensions)")
+
+                # 检查最小尺寸
+                if H < MIN_ROI_SIZE or W < MIN_ROI_SIZE:
+                    self.status_label.setText(f"Image size too small (must be at least {MIN_ROI_SIZE} pixels in both dimensions)")
                     return
 
-                self.x_start_input.setRange(0, W - 8)
-                self.x_end_input.setRange(7, W - 1)
-                self.y_start_input.setRange(0, H - 8)
-                self.y_end_input.setRange(7, H - 1)
+                # 设置 ROI 范围
+                self.x_start_input.setRange(0, W - MIN_ROI_SIZE)
+                self.x_end_input.setRange(MIN_ROI_SIZE - 1, W - 1)
+                self.y_start_input.setRange(0, H - MIN_ROI_SIZE)
+                self.y_end_input.setRange(MIN_ROI_SIZE - 1, H - 1)
+
+                # 默认值
                 self.x_start_input.setValue(0)
                 self.y_start_input.setValue(0)
                 self.x_end_input.setValue(min(63, W - 1))
                 self.y_end_input.setValue(min(63, H - 1))
 
+                # ROI 联动限制
+                def update_x_end_limit():
+                    start = self.x_start_input.value()
+                    self.x_end_input.setMinimum(start + MIN_ROI_SIZE - 1)
+
+                def update_x_start_limit():
+                    end = self.x_end_input.value()
+                    self.x_start_input.setMaximum(end - MIN_ROI_SIZE + 1)
+
+                def update_y_end_limit():
+                    start = self.y_start_input.value()
+                    self.y_end_input.setMinimum(start + MIN_ROI_SIZE - 1)
+
+                def update_y_start_limit():
+                    end = self.y_end_input.value()
+                    self.y_start_input.setMaximum(end - MIN_ROI_SIZE + 1)
+
+                # 绑定事件
+                self.x_start_input.valueChanged.connect(update_x_end_limit)
+                self.x_end_input.valueChanged.connect(update_x_start_limit)
+                self.y_start_input.valueChanged.connect(update_y_end_limit)
+                self.y_end_input.valueChanged.connect(update_y_start_limit)
 
                 self.status_label.setText(f"File loaded with dim: {shape}")
                 self.use_full_image_checkbox.setVisible(True)
 
             except Exception as e:
                 self.status_label.setText(f"Failed to load file: {e}")
+
 
     def run_cs(self):
         # 基础检查
