@@ -104,6 +104,7 @@ class CS_GUI(QWidget):
         self.use_full_image_checkbox = QCheckBox("Use full image")
         self.use_full_image_checkbox.setChecked(True)
         self.use_full_image_checkbox.stateChanged.connect(self.toggle_roi_inputs)
+        self.use_full_image_checkbox.setVisible(False)  # 初始隐藏勾选框
 
         self.roi_label = QLabel("ROI coordinates (x_start, x_end, y_start, y_end):")
         roi_layout = QHBoxLayout()
@@ -115,6 +116,8 @@ class CS_GUI(QWidget):
         roi_layout.addWidget(self.x_end_input)
         roi_layout.addWidget(self.y_start_input)
         roi_layout.addWidget(self.y_end_input)
+
+        # 初始隐藏 ROI 输入框
         self.roi_label.setVisible(False)
         self.x_start_input.setVisible(False)
         self.x_end_input.setVisible(False)
@@ -427,6 +430,8 @@ class CS_GUI(QWidget):
                 self.y_end_input.setValue(H - 1)
 
                 self.status_label.setText(f"File loaded with dim: {shape}")
+                self.use_full_image_checkbox.setVisible(True)
+
             except Exception as e:
                 self.status_label.setText(f"Failed to load file: {e}")
 
