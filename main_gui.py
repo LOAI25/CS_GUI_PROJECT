@@ -419,15 +419,20 @@ class CS_GUI(QWidget):
                 else:
                     self.status_label.setText(f"Wrong image dim: {shape}")
                     return
+                
+                if H < 8 or W < 8:
+                    self.status_label.setText("Image size too small (must be at least 8 pixels in both dimensions)")
+                    return
 
-                self.x_start_input.setRange(0, W - 1)
-                self.x_end_input.setRange(0, W - 1)
-                self.y_start_input.setRange(0, H - 1)
-                self.y_end_input.setRange(0, H - 1)
+                self.x_start_input.setRange(0, W - 8)
+                self.x_end_input.setRange(7, W - 1)
+                self.y_start_input.setRange(0, H - 8)
+                self.y_end_input.setRange(7, H - 1)
                 self.x_start_input.setValue(0)
                 self.y_start_input.setValue(0)
-                self.x_end_input.setValue(W - 1)
-                self.y_end_input.setValue(H - 1)
+                self.x_end_input.setValue(min(63, W - 1))
+                self.y_end_input.setValue(min(63, H - 1))
+
 
                 self.status_label.setText(f"File loaded with dim: {shape}")
                 self.use_full_image_checkbox.setVisible(True)
