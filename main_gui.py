@@ -514,7 +514,7 @@ class CS_GUI(QWidget):
 
         try:
             mask = generate_sampling_mask(H, W, self.sampling_input.value(),
-                                        method=self.sampling_method_selector.currentText())
+                                        method=self.sampling_method_selector.currentText(), seed=42)
             save_mask_to_mat(mask, "sampling_mask.mat")
         except Exception as e:
             self.status_label.setText(f"Fail to generate sampling mask: {e}")
