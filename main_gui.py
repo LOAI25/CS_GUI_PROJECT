@@ -8,8 +8,7 @@ import numpy as np
 import math
 import glob
 import time
-
-
+from pathlib import Path
 from PyQt5.QtWidgets import (
     QApplication,
     QWidget,
@@ -26,9 +25,7 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QListWidgetItem,
 )
-
 from PyQt5.QtCore import QThread, pyqtSignal
-
 from algorithms.common import (
     get_hdf5_image_dims,
     generate_sampling_mask,
@@ -151,6 +148,10 @@ class CS_GUI(QWidget):
         self.run_button = QPushButton("Do compressed sensing")
         self.run_button.clicked.connect(self.run_cs)
 
+        self.export_button = QPushButton("Export results")
+        self.export_button.setEnabled(False)  # Invisible before the result is generated
+        self.export_button.clicked.connect(self.export_results)
+
         # Initial status
         self.status_label = QLabel("The file hasn't been loaded")
 
@@ -176,6 +177,7 @@ class CS_GUI(QWidget):
         self.layout.addWidget(self.advanced_button)
         self.layout.addWidget(self.load_button)
         self.layout.addWidget(self.run_button)
+        self.layout.addWidget(self.export_button)
         self.layout.addWidget(self.status_label)
 
         self.setLayout(self.layout)
@@ -757,8 +759,108 @@ class CS_GUI(QWidget):
             self.status_label.setText(
                 f"Last: {last_algo}  PSNR={m.get('psnr',0):.2f}, SSIM={m.get('ssim',0):.4f}"
             )
+            # Enable the export button
+            if hasattr(self, "export_button"):
+                self.export_button.setEnabled(True)
         else:
             self.status_label.setText("Done (no recon images)")
+
+
+    def ask_export_options(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Export options")
+        v = QVBoxLayout(dlg)
+
+        fmt_row = QHBoxLayout()
+        fmt_row.addWidget(QLabel("Image format:"))
+        fmt_combo = QComboBox()
+        fmt_combo.addItems(["png", "jpg", "pdf"])
+        fmt_row.addWidget(fmt_combo)
+        v.addLayout(fmt_row)
+
+        hb = QHBoxLayout()
+        ok = QPushButton("OK"); cancel = QPushButton("Cancel")
+        hb.addWidget(ok); hb.addWidget(cancel)
+        v.addLayout(hb)
+
+        chosen = {}
+        def accept():
+            chosen["img_format"] = fmt_combo.currentText()
+            dlg.accept()
+        ok.clicked.connect(accept)
+        cancel.clicked.connect(dlg.reject)
+
+        if dlg.exec_() == QDialog.Accepted:
+            return chosen
+        return None
+
+
+    def export_results(self):
+        if not getattr(self, "_results", None):
+            self.status_label.setText("No results to export.")
+            return
+
+        opts = self.ask_export_options()
+        if not opts:
+            return
+
+        out_dir = QFileDialog.getExistingDirectory(self, "Choose export folder", "")
+        if not out_dir:
+            return
+
+        img_ext = opts["img_format"].lower()
+
+        def normalize_to_01(arr):
+            a = np.asarray(arr, dtype=float)
+            mn, mx = float(np.min(a)), float(np.max(a))
+            if mx > mn:
+                a = (a - mn) / (mx - mn)
+            else:
+                a = np.zeros_like(a)
+            return a
+
+        def save_gray_image_any(path, arr, fmt):
+            '''Save grayscale image as png/jpg via imsave, or pdf via savefig.'''
+            a = normalize_to_01(arr)
+            if fmt in ("png", "jpg", "jpeg"):
+                plt.imsave(path, a, cmap="gray")
+            elif fmt == "pdf":
+                fig = plt.figure()
+                ax = fig.add_axes([0, 0, 1, 1])
+                ax.imshow(a, cmap="gray")
+                ax.axis('off')
+                fig.savefig(path, bbox_inches='tight', pad_inches=0)
+                plt.close(fig)
+
+        def write_sidecar_json(image_path, info_dict):
+            '''Write json with the same basename as the image file.'''
+            json_path = Path(str(image_path).rsplit(".", 1)[0] + ".json")
+            with open(json_path, "w", encoding="utf-8") as f:
+                json.dump(info_dict, f, indent=2)
+
+        # Export reconstructed results
+        for algo, res in self._results.items():
+            recon = res.get("recon")
+            if recon is None:
+                continue
+
+            img_path = Path(out_dir) / f"reconstructed_{algo}.{img_ext}"
+            save_gray_image_any(str(img_path), recon, img_ext)
+
+            info = {
+                "type": "reconstruction",
+                "algorithm": algo,
+                "image_file": img_path.name,
+                "metrics": {
+                    "psnr": float(res.get("psnr", 0.0)),
+                    "ssim": float(res.get("ssim", 0.0)),
+                    "time_sec": float(res.get("time", 0.0))
+                }
+            }
+            write_sidecar_json(img_path, info)
+
+        self.status_label.setText(f"Exported to: {out_dir}")
+
 
     def closeEvent(self, event):
         # Wait for possible running subtasks to finish, to avoid leftover temporary files
