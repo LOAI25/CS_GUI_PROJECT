@@ -31,6 +31,7 @@ from algorithms.utils.common import (
     generate_sampling_mask,
     save_mask_to_mat,
     load_hdf5_image,
+    save_temp_mat
 )
 
 
@@ -572,6 +573,7 @@ class CS_GUI(QWidget):
                 full_img = full_img[
                     r["y_start"] : r["y_end"] + 1, r["x_start"] : r["x_end"] + 1
                 ]
+            save_temp_mat(full_img)
             # Add noise
             if "snr" in cfg_base:
                 sigma = np.std(full_img) * (10 ** (-cfg_base["snr"] / 20))
