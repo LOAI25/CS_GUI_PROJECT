@@ -2,7 +2,7 @@ import json
 import os
 import subprocess
 import shutil
-from algorithms.common import load_hdf5_image, save_temp_mat, delete_temp_mat
+from algorithms.utils.common import load_hdf5_image, save_temp_mat, delete_temp_mat
 
 # Read config.json
 with open("config.json") as f:

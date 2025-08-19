@@ -26,7 +26,7 @@ from PyQt5.QtWidgets import (
     QListWidgetItem,
 )
 from PyQt5.QtCore import QThread, pyqtSignal
-from algorithms.common import (
+from algorithms.utils.common import (
     get_hdf5_image_dims,
     generate_sampling_mask,
     save_mask_to_mat,
@@ -663,8 +663,9 @@ class CS_GUI(QWidget):
                         metrics = json.load(f)
                     psnr_val = metrics.get("psnr", 0.0)
                     ssim_val = metrics.get("ssim", 0.0)
+                    rfac_val = metrics.get("r_factor", 0.0)
                 else:
-                    psnr_val = ssim_val = 0.0
+                    psnr_val = ssim_val = rfac_val = 0.0
 
                 # Stop timing and calculate elapsed time
                 t0 = getattr(self, "_algo_t0", {}).pop(algo_name, None)
@@ -674,6 +675,7 @@ class CS_GUI(QWidget):
                     "recon": recon,
                     "psnr": psnr_val,
                     "ssim": ssim_val,
+                    "r_factor": rfac_val,
                     "time": elapsed,
                 }
 
@@ -730,7 +732,10 @@ class CS_GUI(QWidget):
             tiles.append(img)
             titles.append(algo)
             subtitles.append(
-                f"PSNR={res.get('psnr',0):.2f} dB, SSIM={res.get('ssim',0):.4f}, t={res.get('time',0):.2f}s"
+                f"PSNR={res.get('psnr',0):.2f} dB, "
+                f"SSIM={res.get('ssim',0):.4f}, "
+                f"R-factor={res.get('r_factor',0):.4f}, "
+                f"t={res.get('time',0):.2f}s"
             )
 
         n = len(tiles)
@@ -757,14 +762,14 @@ class CS_GUI(QWidget):
             last_algo = list(self._results.keys())[-1]
             m = self._results[last_algo]
             self.status_label.setText(
-                f"Last: {last_algo}  PSNR={m.get('psnr',0):.2f}, SSIM={m.get('ssim',0):.4f}"
+                f"Last: {last_algo}  PSNR={m.get('psnr',0):.2f}, "
+                f"SSIM={m.get('ssim',0):.4f}, R-factor={m.get('r_factor',0):.4f}"
             )
             # Enable the export button
             if hasattr(self, "export_button"):
                 self.export_button.setEnabled(True)
         else:
             self.status_label.setText("Done (no recon images)")
-
 
     def ask_export_options(self):
         dlg = QDialog(self)
@@ -779,21 +784,24 @@ class CS_GUI(QWidget):
         v.addLayout(fmt_row)
 
         hb = QHBoxLayout()
-        ok = QPushButton("OK"); cancel = QPushButton("Cancel")
-        hb.addWidget(ok); hb.addWidget(cancel)
+        ok = QPushButton("OK")
+        cancel = QPushButton("Cancel")
+        hb.addWidget(ok)
+        hb.addWidget(cancel)
         v.addLayout(hb)
 
         chosen = {}
+
         def accept():
             chosen["img_format"] = fmt_combo.currentText()
             dlg.accept()
+
         ok.clicked.connect(accept)
         cancel.clicked.connect(dlg.reject)
 
         if dlg.exec_() == QDialog.Accepted:
             return chosen
         return None
-
 
     def export_results(self):
         if not getattr(self, "_results", None):
@@ -820,7 +828,7 @@ class CS_GUI(QWidget):
             return a
 
         def save_gray_image_any(path, arr, fmt):
-            '''Save grayscale image as png/jpg via imsave, or pdf via savefig.'''
+            """Save grayscale image as png/jpg via imsave, or pdf via savefig."""
             a = normalize_to_01(arr)
             if fmt in ("png", "jpg", "jpeg"):
                 plt.imsave(path, a, cmap="gray")
@@ -828,12 +836,12 @@ class CS_GUI(QWidget):
                 fig = plt.figure()
                 ax = fig.add_axes([0, 0, 1, 1])
                 ax.imshow(a, cmap="gray")
-                ax.axis('off')
-                fig.savefig(path, bbox_inches='tight', pad_inches=0)
+                ax.axis("off")
+                fig.savefig(path, bbox_inches="tight", pad_inches=0)
                 plt.close(fig)
 
         def write_sidecar_json(image_path, info_dict):
-            '''Write json with the same basename as the image file.'''
+            """Write json with the same basename as the image file."""
             json_path = Path(str(image_path).rsplit(".", 1)[0] + ".json")
             with open(json_path, "w", encoding="utf-8") as f:
                 json.dump(info_dict, f, indent=2)
@@ -854,13 +862,13 @@ class CS_GUI(QWidget):
                 "metrics": {
                     "psnr": float(res.get("psnr", 0.0)),
                     "ssim": float(res.get("ssim", 0.0)),
-                    "time_sec": float(res.get("time", 0.0))
-                }
+                    "r_factor": float(res.get("r_factor", 0.0)),
+                    "time_sec": float(res.get("time", 0.0)),
+                },
             }
             write_sidecar_json(img_path, info)
 
         self.status_label.setText(f"Exported to: {out_dir}")
-
 
     def closeEvent(self, event):
         # Wait for possible running subtasks to finish, to avoid leftover temporary files

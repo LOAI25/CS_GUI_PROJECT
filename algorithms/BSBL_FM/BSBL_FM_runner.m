@@ -3,6 +3,7 @@ clear; clc;
 % === 切换到项目根目录 ===
 cd(fullfile('..', '..'));
 addpath(fileparts(mfilename('fullpath')));
+addpath(fullfile('algorithms','utils'));
 
 % === 读取 config.json ===
 fid = fopen('config.json');
@@ -114,8 +115,10 @@ save(cfg.output_path, 'recon_img');
 % === 计算评价指标 ===
 psnr_val = psnr(recon_img, ref_img);
 ssim_val = ssim(recon_img, ref_img);
+r_val = r_factor_masked(recon_img, ref_img, global_mask);
 metrics.psnr = psnr_val;
 metrics.ssim = ssim_val;
+metrics.r_factor = r_val;
 
 fid = fopen(cfg.metrics_path, 'w');
 fwrite(fid, jsonencode(metrics), 'char');

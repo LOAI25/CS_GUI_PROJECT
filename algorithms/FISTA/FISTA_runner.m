@@ -4,6 +4,7 @@ clear; clc;
 cd(fullfile('..', '..'));
 addpath(fileparts(mfilename('fullpath')));
 addpath(genpath(fullfile(fileparts(mfilename('fullpath')), 'FISTA-master')));
+addpath(fullfile('algorithms','utils'));
 
 % === 加载配置 ===
 fid = fopen('config.json');
@@ -132,8 +133,10 @@ save(cfg.output_path, 'recon_img');
 % === 保存指标 ===
 psnr_val = psnr(recon_img, ref_img);
 ssim_val = ssim(recon_img, ref_img);
+r_val = r_factor_masked(recon_img, ref_img, global_mask);
 metrics.psnr = psnr_val;
 metrics.ssim = ssim_val;
+metrics.r_factor = r_val;
 
 fid = fopen(cfg.metrics_path, 'w');
 fwrite(fid, jsonencode(metrics), 'char');

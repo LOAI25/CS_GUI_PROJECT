@@ -5,11 +5,12 @@ from skimage.metrics import peak_signal_noise_ratio as psnr
 from skimage.metrics import structural_similarity as ssim
 import os
 
+
 def load_hdf5_image(path, slice_index=0):
     """
     Load an HDF5 image using Hyperspy format and return a normalized image.
     """
-    signal = hs.load(path, reader='HSPY')
+    signal = hs.load(path, reader="HSPY")
     data = signal.data.astype(np.float64)
 
     if data.ndim == 3:
@@ -25,9 +26,9 @@ def get_hdf5_image_dims(path):
     Return the dimensions of an HDF5 image (without normalization).
     Can be used to determine whether the image is 2D or 3D.
     """
-    signal = hs.load(path, reader='HSPY')
+    signal = hs.load(path, reader="HSPY")
     data = signal.data
-    return data.shape 
+    return data.shape
 
 
 def save_temp_mat(image, mat_path="temp_input.mat"):
@@ -62,17 +63,17 @@ def generate_sampling_mask(H, W, sampling_rate, method="random", seed=None):
     N = int(round(H * W * sampling_rate))
     mask = np.zeros((H, W), dtype=bool)
 
-    if method.lower() == 'random':
+    if method.lower() == "random":
         idx = np.random.choice(H * W, N, replace=False)
         mask.flat[idx] = True
         return mask
 
-    elif method.lower() == 'linehop':
+    elif method.lower() == "linehop":
         # === Estimate lane count based on sampling rate ===
         N_target = N
         lane_count = int(round(H * sampling_rate))
 
-        best_err = float('inf')
+        best_err = float("inf")
         best_sequence = []
 
         for max_h in range(2, int(H / lane_count) + 6):
@@ -103,7 +104,7 @@ def generate_sampling_mask(H, W, sampling_rate, method="random", seed=None):
                 break
 
             y_range = np.arange(y_start, y_start + h)
-            x_path = np.arange(W) if x_dir == 1 else np.arange(W-1, -1, -1)
+            x_path = np.arange(W) if x_dir == 1 else np.arange(W - 1, -1, -1)
 
             y_path = np.zeros(W, dtype=int)
             y_path[0] = np.random.choice(y_range)
@@ -129,7 +130,7 @@ def generate_sampling_mask(H, W, sampling_rate, method="random", seed=None):
             mask.flat[idx] = True
         elif current_count < N_target:
             rest = np.flatnonzero(~mask)
-            idx = np.random.permutation(rest)[:(N_target - current_count)]
+            idx = np.random.permutation(rest)[: (N_target - current_count)]
             mask.flat[idx] = True
 
         return mask
@@ -141,7 +142,7 @@ def generate_sampling_mask(H, W, sampling_rate, method="random", seed=None):
 def save_mask_to_mat(mask, save_path="sampling_mask.mat"):
     """
     保存 mask 为 .mat 文件，确保为 uint8 类型（0/1），兼容 MATLAB。
-    
+
     参数:
         mask: numpy.ndarray (bool 或 int 类型)，尺寸为 (H, W)
         save_path: 保存路径，默认为 "sampling_mask.mat"
@@ -157,3 +158,47 @@ def save_mask_to_mat(mask, save_path="sampling_mask.mat"):
     # 保存为 .mat 文件，变量名叫 'mask'
     savemat(save_path, {"mask": mat_mask})
     print(f"Mask 保存到: {os.path.abspath(save_path)}")
+
+
+def r_factor_masked(reconstruction, original, mask, epsval=1e-12):
+    """
+    R-factor for masked (sampled) measurements with optional in-function normalization.
+
+    R = sum(| |O| - |C| |) / max(sum(|O|), eps)
+    where
+        O = original       * mask
+        C = reconstruction * mask
+
+    Args:
+        reconstruction : np.ndarray
+        original       : np.ndarray
+        mask           : np.ndarray (bool or {0,1})
+        epsval         : float, small constant to avoid division by zero
+
+    Returns:
+        float : R-factor (lower is better).
+    """
+    reconstruction = np.asarray(reconstruction, dtype=float)
+    original = np.asarray(original, dtype=float)
+    mask = np.asarray(mask, dtype=float)
+    mask = (mask != 0).astype(float)  # ensure binary {0,1}
+
+    if reconstruction.shape != original.shape:
+        raise ValueError("reconstruction and original must have the same shape")
+    if mask.shape != original.shape:
+        raise ValueError("mask must have the same shape as images")
+
+    # Sample into observation domain
+    O = original * mask
+    C = reconstruction * mask
+
+    # Apply abs before subtraction
+    Oa = np.abs(O)
+    Ca = np.abs(C)
+
+    # R-factor
+    num = np.sum(np.abs(Oa - Ca))
+    den = np.sum(Oa)
+    if den <= epsval:
+        den = epsval
+    return float(num / den)

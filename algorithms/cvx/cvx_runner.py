@@ -4,7 +4,7 @@ import json
 import numpy as np
 from scipy.io import loadmat, savemat
 from algorithms.cvx.cvx import reconstruct_from_mask_cvx
-from algorithms.common import evaluate_reconstruction
+from algorithms.utils.common import evaluate_reconstruction, r_factor_masked
 
 # 确保项目根路径在 sys.path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
@@ -43,12 +43,7 @@ lam = cfg["lam"]
 
 # === 执行重建 ===
 recon = reconstruct_from_mask_cvx(
-    image,
-    mask,
-    patch_size=patch_size,
-    stride=stride,
-    lam=lam,
-    min_samples=5
+    image, mask, patch_size=patch_size, stride=stride, lam=lam, min_samples=5
 )
 
 # === 保存结果 ===
@@ -56,9 +51,6 @@ savemat(cfg["output_path"], {"recon_img": recon})
 
 # === 计算并保存评价指标 ===
 psnr_val, ssim_val = evaluate_reconstruction(ref_image, recon)
+rfactor_val = r_factor_masked(recon, ref_image, mask)
 with open(cfg["metrics_path"], "w") as f:
-    json.dump({"psnr": psnr_val, "ssim": ssim_val}, f)
-
-# === 删除临时文件（可选） ===
-if os.path.exists(mat_path):
-    os.remove(mat_path)
+    json.dump({"psnr": psnr_val, "ssim": ssim_val, "rfactor": rfactor_val}, f)
