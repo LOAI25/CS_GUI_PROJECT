@@ -26,7 +26,7 @@ def reconstruct_from_mask_cosamp(image, mask, patch_size, stride, max_iters=200,
             msk = patch_mask.flatten().astype(bool)
 
 
-            Phi = np.eye(N)[msk]  # Φ ∈ R^{m×N}
+            Phi = np.eye(N)[msk] 
             y = Phi @ x
             A = Phi @ Psi_inv
 

@@ -69,7 +69,7 @@ def generate_sampling_mask(H, W, sampling_rate, method="random", seed=None):
         return mask
 
     elif method.lower() == "linehop":
-        # === Estimate lane count based on sampling rate ===
+        # Estimate lane count based on sampling rate
         N_target = N
         lane_count = int(round(H * sampling_rate))
 
@@ -121,7 +121,7 @@ def generate_sampling_mask(H, W, sampling_rate, method="random", seed=None):
             y_start += h
             x_dir *= -1
 
-        # === Adjust sampling count ===
+        # Adjust sampling count
         current_count = np.count_nonzero(mask)
         if current_count > N_target:
             idx = np.flatnonzero(mask)
@@ -141,23 +141,17 @@ def generate_sampling_mask(H, W, sampling_rate, method="random", seed=None):
 
 def save_mask_to_mat(mask, save_path="sampling_mask.mat"):
     """
-    保存 mask 为 .mat 文件，确保为 uint8 类型（0/1），兼容 MATLAB。
-
-    参数:
-        mask: numpy.ndarray (bool 或 int 类型)，尺寸为 (H, W)
-        save_path: 保存路径，默认为 "sampling_mask.mat"
+    Save the mask as a .mat file, ensuring it is in uint8 type (0/1), compatible with MATLAB.
     """
     if not isinstance(mask, np.ndarray):
-        raise TypeError("mask 必须是 numpy ndarray")
+        raise TypeError("mask must be a numpy ndarray")
     if mask.ndim != 2:
-        raise ValueError("mask 必须是二维图像掩码")
+        raise ValueError("mask must be a 2D image mask")
 
-    # 转换为 uint8 (0 or 1)
+    # Convert to uint8 (0 or 1)
     mat_mask = mask.astype(np.uint8)
-
-    # 保存为 .mat 文件，变量名叫 'mask'
     savemat(save_path, {"mask": mat_mask})
-    print(f"Mask 保存到: {os.path.abspath(save_path)}")
+
 
 
 def r_factor_masked(reconstruction, original, mask, epsval=1e-12):
