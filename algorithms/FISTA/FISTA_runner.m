@@ -99,9 +99,6 @@ for i = 1:stride:(H - patch_size + 1)
         x = patch(:);
         msk = patch_mask(:);
 
-        if sum(msk) < 5
-            continue;
-        end
 
         Phi = eye(N); Phi = Phi(msk, :);
         A = Phi * Psi2D;

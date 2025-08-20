@@ -9,7 +9,7 @@ def dct2d_matrix_inverse(patch_size):
     return np.kron(D.T, D.T)
 
 
-def reconstruct_from_mask_cosamp(image, mask, patch_size, stride, max_iters=200, K=30, min_samples=5):
+def reconstruct_from_mask_cosamp(image, mask, patch_size, stride, max_iters=200, K=30):
     H, W = image.shape
     N = patch_size * patch_size
     Psi_inv = dct2d_matrix_inverse(patch_size)
@@ -25,8 +25,6 @@ def reconstruct_from_mask_cosamp(image, mask, patch_size, stride, max_iters=200,
             x = patch.flatten()
             msk = patch_mask.flatten().astype(bool)
 
-            if np.sum(msk) < min_samples:
-                continue
 
             Phi = np.eye(N)[msk]  # Φ ∈ R^{m×N}
             y = Phi @ x

@@ -50,4 +50,4 @@ savemat(cfg["output_path"], {"recon_img": recon})
 psnr_val, ssim_val = evaluate_reconstruction(ref_image, recon)
 rfactor_val = r_factor_masked(recon, ref_image, mask)
 with open(cfg["metrics_path"], "w") as f:
-    json.dump({"psnr": psnr_val, "ssim": ssim_val, "rfactor": rfactor_val}, f)
+    json.dump({"psnr": psnr_val, "ssim": ssim_val, "r_factor": rfactor_val}, f)

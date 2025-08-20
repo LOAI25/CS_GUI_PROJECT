@@ -76,10 +76,6 @@ for i = 1:stride:(H - patch_size + 1)
         patch_mask = global_mask(row_range, col_range);
         sample_idx = find(patch_mask(:));
 
-        if numel(sample_idx) < 5
-            continue;
-        end
-
         Phi = eye(N);
         Phi = Phi(sample_idx, :);
 
