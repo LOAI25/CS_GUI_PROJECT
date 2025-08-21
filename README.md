@@ -8,7 +8,7 @@ It supports ROI selection, noise control, patch-based processing, advanced algor
 
 ## Test Data
 For quick testing and demonstration, sample STEM data is provided in the **`STEM data/`** folder.  
-The test data are stored as **HDF5 files**.  
+The test data are stored as **HDF5 files** and were downloaded from [Zenodo](https://zenodo.org/records/2652906). 
 You can load these files directly through the GUI using the **"Choose your HDF5 file"** button.  
 They are suitable for verifying the workflow without preparing your own STEM dataset.
 
