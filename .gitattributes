@@ -1,0 +1,2 @@
+STEM[[:space:]]data/AA6060T6WQ_0_STEM/**/*.hdf5 filter=lfs diff=lfs merge=lfs -text
+STEM[[:space:]]data/AA6060T6WQ_0_STEM/**/*.jpg filter=lfs diff=lfs merge=lfs -text
